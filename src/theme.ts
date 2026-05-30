@@ -37,14 +37,11 @@ export function routeName(name: string): string {
   return stop === locality ? locality : `${locality} ${stop}`;
 }
 
-/** 12-hour clock like "1:23 pm". */
-export function formatClock(d: Date): string {
-  return d
-    .toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
-    .toLowerCase();
-}
+import { t } from "./i18n";
+
+export { formatClock } from "./i18n";
 
 export function minutesLabel(min: number): string {
-  if (min <= 0) return "now";
+  if (min <= 0) return t("now");
   return `${min}′`;
 }

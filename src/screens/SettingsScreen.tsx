@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { confirmAction, infoAlert } from "../confirm";
+import { t } from "../i18n";
 import { groupCenter } from "../location";
 import { makeId } from "../storage";
 import { routeName } from "../theme";
@@ -41,7 +42,7 @@ export function SettingsScreen({
       ...presets,
       {
         id: makeId("grp"),
-        name: "New location",
+        name: t("newLocation"),
         anchor: { lat: lastPosition?.lat ?? 49.0, lng: lastPosition?.lng ?? 8.4, radiusMeters: 1500 },
         routes: [],
       },
@@ -111,16 +112,16 @@ export function SettingsScreen({
     <View className="flex-1 bg-neutral-100 dark:bg-neutral-950" style={{ paddingTop: insets.top }}>
       <View className="flex-row items-center justify-between px-4 py-3">
         <Pressable onPress={onClose} hitSlop={8}>
-          <Text className="text-blue-600 dark:text-blue-400 text-base">Done</Text>
+          <Text className="text-blue-600 dark:text-blue-400 text-base">{t("done")}</Text>
         </Pressable>
-        <Text className="text-neutral-900 dark:text-white text-base font-bold">Settings</Text>
+        <Text className="text-neutral-900 dark:text-white text-base font-bold">{t("settings")}</Text>
         <Pressable
           onPress={() =>
             confirmAction("Reset to defaults?", "Replaces all your locations and routes.", resetToDefaults, "Reset")
           }
           hitSlop={8}
         >
-          <Text className="text-neutral-500 dark:text-neutral-400 text-sm">Reset</Text>
+          <Text className="text-neutral-500 dark:text-neutral-400 text-sm">{t("reset")}</Text>
         </Pressable>
       </View>
 
@@ -129,9 +130,9 @@ export function SettingsScreen({
         <View className="rounded-2xl bg-white dark:bg-neutral-900 p-4 mb-4">
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-3">
-              <Text className="text-neutral-900 dark:text-white text-base font-bold">Can I make it?</Text>
+              <Text className="text-neutral-900 dark:text-white text-base font-bold">{t("canIMakeIt")}</Text>
               <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5">
-                Color departures green / yellow / red by walk or bike time from your location.
+                {t("canIMakeItHelp")}
               </Text>
             </View>
             <Switch
@@ -144,7 +145,7 @@ export function SettingsScreen({
             <View className="mt-4 gap-3">
               {/* Mode */}
               <View className="flex-row items-center justify-between">
-                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">Global mode 🌐</Text>
+                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">{t("globalMode")} 🌐</Text>
                 <View className="flex-row gap-2">
                   {(["walk", "bike"] as const).map((m) => {
                     const on = settings.mode === m;
@@ -155,7 +156,7 @@ export function SettingsScreen({
                         className={`px-3 py-1.5 rounded-full ${on ? "bg-blue-600" : "bg-neutral-100 dark:bg-neutral-800"}`}
                       >
                         <Text className={`text-xs font-semibold ${on ? "text-white" : "text-neutral-600 dark:text-neutral-300"}`}>
-                          {m === "walk" ? "🚶 Walk" : "🚲 Bike"}
+                          {m === "walk" ? `🚶 ${t("walk")}` : `🚲 ${t("bike")}`}
                         </Text>
                       </Pressable>
                     );
@@ -166,7 +167,7 @@ export function SettingsScreen({
               {/* Speed for the active mode */}
               <View className="flex-row items-center justify-between">
                 <Text className="text-neutral-600 dark:text-neutral-300 text-sm">
-                  {settings.mode === "bike" ? "Bike speed" : "Walk speed"}
+                  {settings.mode === "bike" ? t("bikeSpeed") : t("walkSpeed")}
                 </Text>
                 <View className="flex-row items-center gap-1">
                   <TextInput
@@ -182,9 +183,12 @@ export function SettingsScreen({
                 </View>
               </View>
 
-              {/* Green buffer */}
+              <Text className="text-neutral-400 dark:text-neutral-500 text-[11px] font-semibold uppercase tracking-wide mt-1">
+                {t("timing")}
+              </Text>
+
               <View className="flex-row items-center justify-between">
-                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">Tight below</Text>
+                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">{t("tightBelow")}</Text>
                 <View className="flex-row items-center gap-1">
                   <TextInput
                     value={String(settings.bufferMin)}
@@ -197,7 +201,24 @@ export function SettingsScreen({
               </View>
 
               <View className="flex-row items-center justify-between">
-                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">Wait green below</Text>
+                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">{t("optimalWait")}</Text>
+                <View className="flex-row items-center gap-1">
+                  <TextInput
+                    value={String(settings.optimalWaitMin)}
+                    onChangeText={(t) => updateSettings({ optimalWaitMin: Math.max(0, Number(t.replace(/\D/g, "")) || 0) })}
+                    keyboardType="number-pad"
+                    className="w-16 px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-50 text-xs text-center"
+                  />
+                  <Text className="text-neutral-500 dark:text-neutral-400 text-xs">min</Text>
+                </View>
+              </View>
+
+              <Text className="text-neutral-400 dark:text-neutral-500 text-[11px] font-semibold uppercase tracking-wide mt-1">
+                {t("waitColors")}
+              </Text>
+
+              <View className="flex-row items-center justify-between">
+                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">{t("waitGreenBelow")}</Text>
                 <View className="flex-row items-center gap-1">
                   <TextInput
                     value={String(settings.waitGreenMaxMin)}
@@ -210,7 +231,7 @@ export function SettingsScreen({
               </View>
 
               <View className="flex-row items-center justify-between">
-                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">Wait yellow below</Text>
+                <Text className="text-neutral-600 dark:text-neutral-300 text-sm">{t("waitYellowBelow")}</Text>
                 <View className="flex-row items-center gap-1">
                   <TextInput
                     value={String(settings.waitYellowMaxMin)}
@@ -223,8 +244,7 @@ export function SettingsScreen({
               </View>
 
               <Text className="text-neutral-400 dark:text-neutral-500 text-[11px] leading-4">
-                Estimated from straight-line distance × 1.3. Needs location enabled. Departure color: red = you'd miss it,
-                yellow = tight, green = {settings.bufferMin}+ min to spare. Wait color: green &lt; {settings.waitGreenMaxMin}, yellow &lt; {settings.waitYellowMaxMin}, red above.
+                {t("reachHelpPrefix")} {t("departureColor")}: {t("redMiss")}, {t("yellowTight")}, {t("greenSpare", { n: settings.bufferMin })}. {t("waitColor")}: {t("greenBelow", { n: settings.waitGreenMaxMin })}, {t("yellowBelow", { n: settings.waitYellowMaxMin })}, {t("redAbove")}.
               </Text>
             </View>
           )}
@@ -236,7 +256,7 @@ export function SettingsScreen({
             <TextInput
               value={g.name}
               onChangeText={(t) => updateGroup(g.id, { name: t })}
-              placeholder="Location name"
+              placeholder={t("locationName")}
               placeholderTextColor="#9CA3AF"
               className="text-neutral-900 dark:text-white text-xl font-bold mb-3"
             />
@@ -249,11 +269,11 @@ export function SettingsScreen({
                 <View className="flex-row items-center justify-between mb-3">
                   <Text className="text-neutral-400 dark:text-neutral-500 text-[11px] flex-1 mr-2" numberOfLines={1}>
                     {n > 0
-                      ? `◎ Auto-centered on ${n} start stop${n > 1 ? "s" : ""} · ${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`
-                      : "◎ Add a route to enable auto-location"}
+                      ? `◎ ${t("autoCentered", { n, s: n > 1 ? "s" : "" })} · ${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`
+                      : `◎ ${t("addRouteEnableLocation")}`}
                   </Text>
                   <View className="flex-row items-center gap-1">
-                    <Text className="text-neutral-500 dark:text-neutral-400 text-xs">within</Text>
+                    <Text className="text-neutral-500 dark:text-neutral-400 text-xs">{t("within")}</Text>
                     <TextInput
                       value={String(g.anchor.radiusMeters)}
                       onChangeText={(t) => updateAnchor(g.id, { radiusMeters: Math.max(100, Number(t.replace(/\D/g, "")) || 0) })}
@@ -298,26 +318,26 @@ export function SettingsScreen({
                   onPress={() => setEditing({ groupId: g.id, route: null })}
                   className="px-3 py-2 rounded-lg bg-blue-600"
                 >
-                  <Text className="text-white text-xs font-semibold">+ Add route</Text>
+                  <Text className="text-white text-xs font-semibold">+ {t("addRoute")}</Text>
                 </Pressable>
                 {g.routes.length > 0 && (
                   <Pressable
                     onPress={() => createReverseGroup(g.id)}
                     className="px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800"
                   >
-                    <Text className="text-blue-600 dark:text-blue-400 text-xs font-semibold">⇄ Reverse copy</Text>
+                    <Text className="text-blue-600 dark:text-blue-400 text-xs font-semibold">⇄ {t("reverseCopy")}</Text>
                   </Pressable>
                 )}
               </View>
               <Pressable onPress={() => deleteGroup(g.id)} hitSlop={8}>
-                <Text className="text-red-500 text-xs">Delete location</Text>
+                <Text className="text-red-500 text-xs">{t("deleteLocation")}</Text>
               </Pressable>
             </View>
           </View>
         ))}
 
         <Pressable onPress={addGroup} className="rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700 p-4 items-center">
-          <Text className="text-blue-600 dark:text-blue-400 font-semibold">+ Add location</Text>
+          <Text className="text-blue-600 dark:text-blue-400 font-semibold">+ {t("addLocation")}</Text>
         </Pressable>
       </ScrollView>
 

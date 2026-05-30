@@ -11,7 +11,9 @@ export const DEFAULT_SETTINGS: ReachSettings = {
   walkKmh: 5,
   bikeKmh: 15,
   bufferMin: 10,
+  optimalWaitMin: 5,
   hideUnreachable: true,
+  departureDisplay: "countdown",
   waitGreenMaxMin: 15,
   waitYellowMaxMin: 30,
 };

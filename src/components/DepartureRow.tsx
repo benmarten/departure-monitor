@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
 import { ReachSettings, RouteDeparture } from "../types";
 import { computeReach } from "../reach";
+import { t } from "../i18n";
 import { formatClock, lineColor, minutesLabel, routeName, stopShort } from "../theme";
 
 const REACH_TEXT: Record<string, string> = {
@@ -31,6 +32,12 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
 
   const reach = computeReach(dep, pos, settings, now, routeMode);
   const minColor = reach ? REACH_TEXT[reach.level] : "text-neutral-900 dark:text-neutral-50";
+  const leaveInMin = reach
+    ? Math.round((dep.depWhen.getTime() - (reach.travelMin + settings.optimalWaitMin) * 60_000 - now) / 60_000)
+    : null;
+  const primaryLabel = settings.departureDisplay === "leaveBy" && reach && leaveInMin != null
+    ? `${REACH_ICON[reach.mode]} ${minutesLabel(leaveInMin)}`
+    : minutesLabel(min);
 
   return (
     <View
@@ -53,18 +60,18 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
           {dep.headsign ? stopShort(dep.headsign) : dep.product || "—"}
         </Text>
         <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5" numberOfLines={1}>
-          {dep.arrWhen ? `arrives ${formatClock(dep.arrWhen)}` : dep.product}
+          {dep.arrWhen ? `${t("arrives")} ${formatClock(dep.arrWhen)}` : dep.product}
           {dep.travelMinutes != null ? ` · ${dep.travelMinutes}'` : ""}
-          {dep.transfers > 0 ? ` · ${dep.transfers}× change` : ""}
+          {dep.transfers > 0 ? ` · ${dep.transfers}× ${t("change")}` : ""}
         </Text>
       </View>
 
       <View className="items-end min-w-[58px] self-start mt-0.5">
         {dep.cancelled ? (
-          <Text className="text-red-500 font-bold text-sm">cancelled</Text>
+          <Text className="text-red-500 font-bold text-sm">{t("cancelled")}</Text>
         ) : (
           <View>
-            <Text className={`text-xl font-extrabold ${minColor}`}>{minutesLabel(min)}</Text>
+            <Text className={`text-xl font-extrabold ${minColor}`}>{primaryLabel}</Text>
             <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5">
               {formatClock(dep.depWhen)}
              {late ? (

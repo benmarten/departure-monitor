@@ -40,9 +40,9 @@ export const DEFAULT_PRESETS: LocationGroup[] = [
 export async function loadPresets(): Promise<LocationGroup[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_PRESETS;
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as LocationGroup[];
-    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_PRESETS;
+    if (!Array.isArray(parsed)) return [];
     return parsed;
   } catch {
     return DEFAULT_PRESETS;
@@ -56,8 +56,8 @@ export async function savePresets(presets: LocationGroup[]): Promise<void> {
 
 /** Reset to the built-in defaults. */
 export async function resetPresets(): Promise<LocationGroup[]> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PRESETS));
-  return DEFAULT_PRESETS;
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+  return [];
 }
 
 /**

@@ -47,8 +47,12 @@ export interface ReachSettings {
   bikeKmh: number;
   /** Spare minutes needed to count as "comfortable" (green vs yellow). */
   bufferMin: number;
+  /** Target wait time at the stop for the "leave in" calculation. */
+  optimalWaitMin: number;
   /** Hide departures the user can't reach in time. */
   hideUnreachable: boolean;
+  /** Main row display mode. */
+  departureDisplay: "countdown" | "leaveBy";
   /** Wait/slack time below this is green. */
   waitGreenMaxMin: number;
   /** Wait/slack time below this is yellow; higher is red. */

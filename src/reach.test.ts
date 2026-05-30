@@ -30,7 +30,9 @@ const baseSettings: ReachSettings = {
   walkKmh: 5,
   bikeKmh: 18,
   bufferMin: 3,
+  optimalWaitMin: 5,
   hideUnreachable: false,
+  departureDisplay: "countdown",
   waitGreenMaxMin: 10,
   waitYellowMaxMin: 20,
 };

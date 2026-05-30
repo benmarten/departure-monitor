@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StationSearchField } from "../components/StationSearchField";
+import { t } from "../i18n";
 import { makeId } from "../storage";
 import { EfaStop, RouteConfig } from "../types";
 
@@ -39,9 +40,9 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
   }
 
   const MODE_OPTIONS: { value: "walk" | "bike" | undefined; label: string }[] = [
-    { value: undefined, label: "🌐 Global" },
-    { value: "walk", label: "🚶 Walk" },
-    { value: "bike", label: "🚲 Bike" },
+    { value: undefined, label: `🌐 ${t("global")}` },
+    { value: "walk", label: `🚶 ${t("walk")}` },
+    { value: "bike", label: `🚲 ${t("bike")}` },
   ];
 
   const canSave = !!start && !!end;
@@ -52,51 +53,51 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
         {/* Header */}
         <View className="flex-row items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
           <Pressable onPress={onClose} hitSlop={8} className="w-16">
-            <Text className="text-blue-600 dark:text-blue-400 text-base">Cancel</Text>
+            <Text className="text-blue-600 dark:text-blue-400 text-base">{t("cancel")}</Text>
           </Pressable>
           <Text className="text-neutral-900 dark:text-white text-base font-bold">
-            {initial ? "Edit route" : "New route"}
+            {initial ? t("editRoute") : t("newRoute")}
           </Text>
           <Pressable onPress={save} hitSlop={8} disabled={!canSave} className="w-16 items-end">
             <Text className={`text-base font-bold ${canSave ? "text-blue-600 dark:text-blue-400" : "text-neutral-300 dark:text-neutral-600"}`}>
-              Save
+              {t("save")}
             </Text>
           </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16 }} keyboardShouldPersistTaps="handled">
           <Text className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-wide mb-2 ml-1">
-            Journey
+            {t("journey")}
           </Text>
 
           {/* Start → destination card with a connecting rail */}
           <View className="rounded-2xl bg-white dark:bg-neutral-900 overflow-hidden">
             <StationSearchField
-              label="From"
+              label={t("from")}
               value={start}
               accentColor="#22C55E"
-              placeholder="Pick a start stop…"
+              placeholder={t("pickStartStop")}
               onChange={setStart}
             />
             <View className="h-px bg-neutral-100 dark:bg-neutral-800 ml-11" />
             <StationSearchField
-              label="To"
+              label={t("to")}
               value={end}
               accentColor="#3B82F6"
-              placeholder="Pick a destination…"
+              placeholder={t("pickDestination")}
               onChange={setEnd}
             />
           </View>
 
           {/* Lines */}
           <Text className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-wide mb-2 mt-6 ml-1">
-            Lines (optional)
+            {t("linesOptional")}
           </Text>
           <View className="rounded-2xl bg-white dark:bg-neutral-900 px-4 py-3">
             <TextInput
               value={linesText}
               onChangeText={setLinesText}
-              placeholder="e.g. S2, S9 — empty = all lines"
+              placeholder={t("linesPlaceholder")}
               placeholderTextColor="#9CA3AF"
               autoCapitalize="characters"
               className="text-[15px] text-neutral-900 dark:text-neutral-50 py-1"
@@ -105,7 +106,7 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
 
           {/* Per-route reachability mode */}
           <Text className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-wide mb-2 mt-6 ml-1">
-            Reach by
+            {t("reachBy")}
           </Text>
           <View className="rounded-2xl bg-white dark:bg-neutral-900 p-3 flex-row gap-2">
             {MODE_OPTIONS.map((o) => {
@@ -124,12 +125,11 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
             })}
           </View>
           <Text className="text-neutral-400 dark:text-neutral-500 text-[11px] mt-1.5 ml-1">
-            "Default" uses the global mode; the main-page toggle can override all routes.
+            {t("defaultRouteModeHelp")}
           </Text>
 
           <Text className="text-neutral-400 dark:text-neutral-500 text-xs mt-4 ml-1 leading-5">
-            Only direct departures from your start that actually travel to your destination are shown —
-            labeled with your destination and arrival time.
+            {t("directDeparturesHelp")}
           </Text>
         </ScrollView>
       </View>

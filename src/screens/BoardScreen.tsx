@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DepartureRow } from "../components/DepartureRow";
+import { t } from "../i18n";
 import { computeReach } from "../reach";
 import { formatClock } from "../theme";
 import { DeparturesState } from "../useDepartures";
@@ -11,13 +12,15 @@ import { LocationGroup, ReachSettings } from "../types";
 /** Shown as the page title (matches the web document title). */
 const APP_TITLE = "Abfahrtsmonitor";
 
-const STATUS_LABEL: Record<LocationStatus, string> = {
-  locating: "Locating…",
-  auto: "Auto by location",
-  manual: "Manual",
-  denied: "Location off",
-  error: "Location unavailable",
-};
+function statusLabel(status: LocationStatus): string {
+  switch (status) {
+    case "locating": return t("locating");
+    case "auto": return t("autoByLocation");
+    case "manual": return t("manual");
+    case "denied": return t("locationOff");
+    case "error": return t("locationUnavailable");
+  }
+}
 
 interface Props {
   presets: LocationGroup[];
@@ -28,11 +31,15 @@ interface Props {
   onOpenSettings: () => void;
 }
 
-const OVERRIDE_OPTIONS: { value: "walk" | "bike" | null; label: string }[] = [
-  { value: null, label: "🌐" },
-  { value: "walk", label: "🚶" },
-  { value: "bike", label: "🚲" },
-];
+function nextOverride(value: "walk" | "bike" | null): "walk" | "bike" | null {
+  return value === null ? "walk" : value === "walk" ? "bike" : null;
+}
+
+function overrideLabel(value: "walk" | "bike" | null): string {
+  if (value === "walk") return `🚶 ${t("walk")}`;
+  if (value === "bike") return `🚲 ${t("bike")}`;
+  return `🌐 ${t("global")}`;
+}
 
 export function BoardScreen({ presets, active, departures, settings, updateSettings, onOpenSettings }: Props) {
   const insets = useSafeAreaInsets();
@@ -55,9 +62,9 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
   }, [group]);
 
   const subtitle = useMemo(() => {
-    const parts = [STATUS_LABEL[status]];
+    const parts = [statusLabel(status)];
     if (status === "auto" && distanceMeters != null) {
-      parts.push(inRange ? `${Math.round(distanceMeters)} m away` : `nearest · ${(distanceMeters / 1000).toFixed(1)} km`);
+      parts.push(inRange ? `${Math.round(distanceMeters)} m ${t("away")}` : `${t("nearest")} · ${(distanceMeters / 1000).toFixed(1)} km`);
     }
     return parts.join(" · ");
   }, [status, distanceMeters, inRange]);
@@ -88,7 +95,7 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
         {/* Header */}
         <View className="flex-row items-center justify-between mb-1">
           <Text className="text-neutral-900 dark:text-white text-3xl font-extrabold" numberOfLines={1}>
-            {APP_TITLE}
+            {t("appTitle")}
           </Text>
           <View className="flex-row gap-2">
             {/* Only show "use my location" when re-locating would change something
@@ -128,41 +135,39 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
           })}
         </View>
 
-        {/* Global reachability mode override + hide-unreachable toggle */}
         {settings.enabled && (
-          <View className="flex-row items-center gap-2 mb-4 flex-wrap">
-            <Text className="text-neutral-500 dark:text-neutral-400 text-xs mr-1">Reach by</Text>
-            {OVERRIDE_OPTIONS.map((o) => {
-              const on = settings.override === o.value;
-              return (
-                <Pressable
-                  key={o.label}
-                  onPress={() => updateSettings({ override: o.value })}
-                  className={`px-3 py-1 rounded-full ${on ? "bg-blue-600" : "bg-neutral-200 dark:bg-neutral-800"}`}
-                >
-                  <Text className={`text-xs font-semibold ${on ? "text-white" : "text-neutral-600 dark:text-neutral-300"}`}>
-                    {o.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-            <View className="w-3" />
-            <Text className="text-neutral-500 dark:text-neutral-400 text-xs mr-1">Unreachable</Text>
-              <Pressable
-                onPress={() => updateSettings({ hideUnreachable: !settings.hideUnreachable })}
-                className={`px-3 py-1 rounded-full ${settings.hideUnreachable ? "bg-blue-600" : "bg-neutral-200 dark:bg-neutral-800"}`}
-              >
-                <Text className={`text-xs font-semibold ${settings.hideUnreachable ? "text-white" : "text-neutral-600 dark:text-neutral-300"}`}>
-                  {settings.hideUnreachable ? "🙈" : "👁️"}
-                </Text>
-              </Pressable>
+          <View className="flex-row items-center gap-1.5 mb-4 flex-wrap">
+            <Pressable
+              onPress={() => updateSettings({ override: nextOverride(settings.override) })}
+              className="px-2.5 py-1 rounded-full bg-blue-600"
+            >
+              <Text className="text-xs font-semibold text-white">{overrideLabel(settings.override)}</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => updateSettings({ hideUnreachable: !settings.hideUnreachable })}
+              className={`px-2.5 py-1 rounded-full ${settings.hideUnreachable ? "bg-blue-600" : "bg-neutral-200 dark:bg-neutral-800"}`}
+            >
+              <Text className={`text-xs font-semibold ${settings.hideUnreachable ? "text-white" : "text-neutral-600 dark:text-neutral-300"}`}>
+                {settings.hideUnreachable ? `🙈 ${t("hidden")}` : `👁️ ${t("all")}`}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => updateSettings({ departureDisplay: settings.departureDisplay === "countdown" ? "leaveBy" : "countdown" })}
+              className="px-2.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-800"
+            >
+              <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                {settings.departureDisplay === "countdown" ? `⏱ ${t("depart")}` : `🚶 ${t("leaveBy")}`}
+              </Text>
+            </Pressable>
           </View>
         )}
 
         {isDemo && (
           <View className="rounded-xl bg-amber-100 dark:bg-amber-900/40 p-2.5 mb-3">
             <Text className="text-amber-800 dark:text-amber-300 text-xs">
-              Some live data was unavailable — showing demo departures.
+              {t("demo")}
             </Text>
           </View>
         )}
@@ -170,18 +175,18 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
         {loading ? (
           <View className="items-center py-16 gap-2">
             <ActivityIndicator />
-            <Text className="text-neutral-500 dark:text-neutral-400">Loading departures…</Text>
+            <Text className="text-neutral-500 dark:text-neutral-400">{t("loadingDepartures")}</Text>
           </View>
         ) : !group || group.routes.length === 0 ? (
           <View className="items-center py-16 gap-2">
-            <Text className="text-neutral-500 dark:text-neutral-400">No routes configured here.</Text>
+            <Text className="text-neutral-500 dark:text-neutral-400">{t("noRoutes")}</Text>
             <Pressable onPress={onOpenSettings} className="px-4 py-2 rounded-full bg-blue-600">
-              <Text className="text-white font-semibold">Add a route</Text>
+              <Text className="text-white font-semibold">{t("addRoute")}</Text>
             </Pressable>
           </View>
         ) : merged.length === 0 ? (
           <View className="items-center py-16">
-            <Text className="text-neutral-500 dark:text-neutral-400">No upcoming departures.</Text>
+            <Text className="text-neutral-500 dark:text-neutral-400">{t("noUpcoming")}</Text>
           </View>
         ) : (
           <View className="gap-2">
@@ -203,9 +208,9 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
             {error
               ? error
               : lastUpdated
-              ? `Updated ${formatClock(lastUpdated)}${canPull ? " · pull to refresh" : ""}`
+              ? `${t("updated")} ${formatClock(lastUpdated)}${canPull ? ` · ${t("pullToRefresh")}` : ""}`
               : canPull
-              ? "Pull to refresh"
+              ? t("pullToRefresh")
               : ""}
           </Text>
         </View>

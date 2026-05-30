@@ -19,7 +19,10 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -31,7 +34,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Your location is used to automatically select the nearest departure preset."
         }
-      ]
+      ],
+      "expo-localization"
     ]
   }
 }
