@@ -50,7 +50,7 @@ export function SettingsScreen({
   }
   function deleteGroup(id: string) {
     const g = presets.find((x) => x.id === id);
-    confirmAction("Delete location?", `Remove “${g?.name ?? ""}” and its routes.`, () =>
+    confirmAction(t("deleteLocationTitle"), t("deleteLocationMessage", { name: g?.name ?? "" }), () =>
       setPresets(presets.filter((x) => x.id !== id))
     );
   }
@@ -105,7 +105,7 @@ export function SettingsScreen({
       routes: reversed,
     };
     setPresets([...presets, newGroup]);
-    infoAlert("Reverse group created", `Created “${newGroup.name}” with ${reversed.length} reversed route${reversed.length > 1 ? "s" : ""}. Rename it as you like.`);
+    infoAlert(t("reverseGroupCreated"), t("reverseGroupCreatedMessage", { name: newGroup.name, n: reversed.length, s: reversed.length > 1 ? "s" : "" }));
   }
 
   return (
@@ -117,7 +117,7 @@ export function SettingsScreen({
         <Text className="text-neutral-900 dark:text-white text-base font-bold">{t("settings")}</Text>
         <Pressable
           onPress={() =>
-            confirmAction("Reset to defaults?", "Replaces all your locations and routes.", resetToDefaults, "Reset")
+            confirmAction(t("resetTitle"), t("resetMessage"), resetToDefaults, t("reset"))
           }
           hitSlop={8}
         >

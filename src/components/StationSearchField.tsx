@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { searchStops } from "../efa";
+import { t } from "../i18n";
 import { EfaStop } from "../types";
 
 interface Props {
@@ -71,7 +72,7 @@ export function StationSearchField({ label, value, placeholder, accentColor = "#
               autoFocus
               value={query}
               onChangeText={setQuery}
-              placeholder="Type a stop name…"
+              placeholder={t("typeStopName")}
               placeholderTextColor="#9CA3AF"
               autoCapitalize="words"
               className="text-[15px] mt-0.5 p-0 text-neutral-900 dark:text-neutral-50"
@@ -87,7 +88,7 @@ export function StationSearchField({ label, value, placeholder, accentColor = "#
                 className={`text-[15px] mt-0.5 ${value ? "text-neutral-900 dark:text-neutral-50 font-medium" : "text-neutral-400"}`}
                 numberOfLines={1}
               >
-                {value?.name ?? placeholder ?? "Tap to search a stop…"}
+                {value?.name ?? placeholder ?? t("tapSearchStop")}
               </Text>
             </Pressable>
           )}

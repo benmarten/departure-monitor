@@ -9,7 +9,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Your location is used to automatically select the nearest departure preset."
+        "NSLocationWhenInUseUsageDescription": "Your location is used to automatically select the nearest departure preset. / Dein Standort wird verwendet, um automatisch die nächstgelegene Abfahrtskonfiguration auszuwählen."
       }
     },
     "android": {
@@ -32,7 +32,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Your location is used to automatically select the nearest departure preset."
+          "locationAlwaysAndWhenInUsePermission": "Your location is used to automatically select the nearest departure preset. / Dein Standort wird verwendet, um automatisch die nächstgelegene Abfahrtskonfiguration auszuwählen."
         }
       ],
       "expo-localization"

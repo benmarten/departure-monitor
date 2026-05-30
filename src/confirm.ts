@@ -1,4 +1,5 @@
 import { Alert, Platform } from "react-native";
+import { t } from "./i18n";
 
 /**
  * Cross-platform confirmation. React Native's `Alert.alert` is a no-op on
@@ -9,7 +10,7 @@ export function confirmAction(
   title: string,
   message: string,
   onConfirm: () => void,
-  confirmLabel = "Delete"
+  confirmLabel = t("delete")
 ): void {
   if (Platform.OS === "web") {
     // eslint-disable-next-line no-alert
@@ -19,7 +20,7 @@ export function confirmAction(
     return;
   }
   Alert.alert(title, message, [
-    { text: "Cancel", style: "cancel" },
+    { text: t("cancel"), style: "cancel" },
     { text: confirmLabel, style: "destructive", onPress: onConfirm },
   ]);
 }

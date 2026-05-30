@@ -88,6 +88,8 @@ const translations = {
     deleteLocationMessage: "Remove “{name}” and its routes.",
     resetTitle: "Reset to defaults?",
     resetMessage: "Removes all your locations and routes.",
+    reverseGroupCreated: "Reverse group created",
+    reverseGroupCreatedMessage: "Created “{name}” with {n} reversed route{s}. Rename it as you like.",
     delete: "Delete",
   },
   de: {
@@ -175,6 +177,8 @@ const translations = {
     deleteLocationMessage: "„{name}“ und seine Routen entfernen.",
     resetTitle: "Zurücksetzen?",
     resetMessage: "Entfernt alle Standorte und Routen.",
+    reverseGroupCreated: "Rückweg erstellt",
+    reverseGroupCreatedMessage: "„{name}“ mit {n} umgekehrten Route{s} erstellt. Du kannst den Namen ändern.",
     delete: "Löschen",
   },
 } as const;
