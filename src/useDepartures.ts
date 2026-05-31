@@ -3,8 +3,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { demoRouteDepartures, fetchRouteDepartures } from "./efa";
 import { LocationGroup, RouteConfig, RouteDeparture } from "./types";
 
-/** How many departures to show per route. */
+/** How many departures to show per route initially. */
 export const SHOW_PER_ROUTE = 3;
+/** How many more to load when "Load Later" is pressed. */
+export const LOAD_MORE_PER_ROUTE = 3;
 /** Show illustrative data if EFA is unreachable, instead of an empty board. */
 export const USE_DEMO_FALLBACK = true;
 
@@ -17,10 +19,13 @@ export interface DeparturesState {
   byRoute: RouteGroup[];
   loading: boolean;
   refreshing: boolean;
+  loadingMore: boolean;
   error: string | null;
   isDemo: boolean;
   lastUpdated: Date | null;
+  maxResultsPerRoute: number;
   refresh: () => void;
+  loadMore: () => void;
 }
 
 const CACHE_KEY_PREFIX = "kvv-board:cache:";
@@ -67,9 +72,11 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
   const [byRoute, setByRoute] = useState<RouteGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [maxResultsPerRoute, setMaxResultsPerRoute] = useState(SHOW_PER_ROUTE);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -78,13 +85,14 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
   const groupRef = useRef(group);
   groupRef.current = group;
 
-  const load = useCallback(async (isFirst: boolean) => {
+  const load = useCallback(async (isFirst: boolean, resultsPerRoute?: number) => {
     const g = groupRef.current;
     if (!g) {
       abortRef.current?.abort();
       setByRoute([]);
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
       setError(null);
       setIsDemo(false);
       setLastUpdated(null);
@@ -94,13 +102,16 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    const numResults = resultsPerRoute ?? maxResultsPerRoute;
+
     if (isFirst) setLoading(true);
+    else if (resultsPerRoute != null) setLoadingMore(true);
     else setRefreshing(true);
 
     const now = Date.now();
     const results = await Promise.allSettled(
       g.routes.map((route) =>
-        fetchRouteDepartures(route, { results: SHOW_PER_ROUTE, now, signal: controller.signal })
+        fetchRouteDepartures(route, { results: numResults, now, signal: controller.signal })
       )
     );
     if (controller.signal.aborted) return;
@@ -118,13 +129,14 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
     setLastUpdated(new Date());
     setLoading(false);
     setRefreshing(false);
+    setLoadingMore(false);
 
     // Cache successful results (skip demo-filled ones)
     const allSuccess = failures === 0;
     if (allSuccess) {
       await saveCache(g.id, groups);
     }
-  }, []);
+  }, [maxResultsPerRoute]);
 
   // Only re-fetch when something that affects the timetable query changes
   // (active group, its routes' stops/lines) — NOT on cosmetic edits like a
@@ -163,13 +175,25 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
     };
   }, [fetchKey, load]);
 
+  const loadMore = useCallback(() => {
+    const newMax = maxResultsPerRoute + LOAD_MORE_PER_ROUTE;
+    setMaxResultsPerRoute(newMax);
+    load(false, newMax);
+  }, [maxResultsPerRoute, load]);
+
   return {
     byRoute,
     loading,
     refreshing,
+    loadingMore,
     error,
     isDemo,
     lastUpdated,
-    refresh: () => load(false),
+    maxResultsPerRoute,
+    refresh: () => {
+      setMaxResultsPerRoute(SHOW_PER_ROUTE);
+      load(false, SHOW_PER_ROUTE);
+    },
+    loadMore,
   };
 }

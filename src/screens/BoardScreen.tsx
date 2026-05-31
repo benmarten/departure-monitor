@@ -28,6 +28,7 @@ interface Props {
   departures: DeparturesState;
   settings: ReachSettings;
   updateSettings: (patch: Partial<ReachSettings>) => void;
+  onOpenRoutes: () => void;
   onOpenSettings: () => void;
 }
 
@@ -41,10 +42,10 @@ function overrideLabel(value: "walk" | "bike" | null): string {
   return `🌐 ${t("global")}`;
 }
 
-export function BoardScreen({ presets, active, departures, settings, updateSettings, onOpenSettings }: Props) {
+export function BoardScreen({ presets, active, departures, settings, updateSettings, onOpenRoutes, onOpenSettings }: Props) {
   const insets = useSafeAreaInsets();
   const { group, status, distanceMeters, inRange } = active;
-  const { byRoute, loading, refreshing, error, isDemo, lastUpdated, refresh } = departures;
+  const { byRoute, loading, refreshing, loadingMore, error, isDemo, lastUpdated, refresh, loadMore } = departures;
 
   // Pull-to-refresh only works on touch devices; hide its hint on desktop web.
   const canPull =
@@ -110,6 +111,9 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
                 <Text className="text-neutral-600 dark:text-neutral-300 text-lg">{status === "locating" ? "…" : "◎"}</Text>
               </Pressable>
             )}
+            <Pressable onPress={onOpenRoutes} hitSlop={8} className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 items-center justify-center">
+              <Text className="text-neutral-600 dark:text-neutral-300 text-lg">🚆</Text>
+            </Pressable>
             <Pressable onPress={onOpenSettings} hitSlop={8} className="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 items-center justify-center">
               <Text className="text-neutral-600 dark:text-neutral-300 text-lg">⚙︎</Text>
             </Pressable>
@@ -189,18 +193,32 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
             <Text className="text-neutral-500 dark:text-neutral-400">{t("noUpcoming")}</Text>
           </View>
         ) : (
-          <View className="gap-2">
-            {merged.map((d) => (
-              <DepartureRow
-                key={d.key}
-                dep={d}
-                now={now}
-                pos={active.lastPosition}
-                settings={settings}
-                routeMode={modeByRoute.get(d.routeId)}
-              />
-            ))}
-          </View>
+          <>
+            <View className="gap-2">
+              {merged.map((d) => (
+                <DepartureRow
+                  key={d.key}
+                  dep={d}
+                  now={now}
+                  pos={active.lastPosition}
+                  settings={settings}
+                  routeMode={modeByRoute.get(d.routeId)}
+                />
+              ))}
+            </View>
+
+            {!loading && !isDemo && (
+              <Pressable
+                onPress={loadMore}
+                disabled={loadingMore}
+                className="mt-4 py-3 rounded-xl bg-neutral-200 dark:bg-neutral-800 items-center"
+              >
+                <Text className="text-neutral-700 dark:text-neutral-300 font-semibold">
+                  {loadingMore ? t("loadingDepartures") : t("loadLater")}
+                </Text>
+              </Pressable>
+            )}
+          </>
         )}
 
         <View className="items-center py-5 mt-2">

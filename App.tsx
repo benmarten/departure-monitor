@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { BoardScreen } from "./src/screens/BoardScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
+import { RoutesScreen } from "./src/screens/RoutesScreen";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { useActiveLocation } from "./src/useActiveLocation";
 import { useAppSettings } from "./src/appSettings";
@@ -17,6 +18,7 @@ export default function App() {
   const active = useActiveLocation(presetsState.presets);
   const departures = useDepartures(active.group);
   const { settings, update: updateSettings } = useAppSettings();
+  const [showRoutes, setShowRoutes] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   return (
@@ -24,12 +26,16 @@ export default function App() {
       <SafeAreaProvider>
         <View className="flex-1 bg-neutral-100 dark:bg-neutral-950">
           <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-          {showSettings ? (
-            <SettingsScreen
+          {showRoutes ? (
+            <RoutesScreen
               presets={presetsState.presets}
               setPresets={presetsState.setPresets}
               resetToDefaults={presetsState.resetToDefaults}
               lastPosition={active.lastPosition}
+              onClose={() => setShowRoutes(false)}
+            />
+          ) : showSettings ? (
+            <SettingsScreen
               settings={settings}
               updateSettings={updateSettings}
               onClose={() => setShowSettings(false)}
@@ -41,6 +47,7 @@ export default function App() {
               departures={departures}
               settings={settings}
               updateSettings={updateSettings}
+              onOpenRoutes={() => setShowRoutes(true)}
               onOpenSettings={() => setShowSettings(true)}
             />
           )}

@@ -87,7 +87,16 @@ export function useActiveLocation(presets: LocationGroup[]): ActiveLocationState
 
   useEffect(() => {
     detect();
-  }, [detect]);
+
+    // Set up continuous location tracking every 30 seconds
+    const interval = setInterval(() => {
+      if (!manualId) {
+        detect();
+      }
+    }, 30_000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [detect, manualId]);
 
   // Recompute the active group whenever position, presets, or manual pin change.
   useEffect(() => {

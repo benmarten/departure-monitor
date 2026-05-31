@@ -43,5 +43,10 @@ export { formatClock } from "./i18n";
 
 export function minutesLabel(min: number): string {
   if (min <= 0) return t("now");
-  return `${min}′`;
+  if (min > 60) {
+    const hours = Math.floor(min / 60);
+    const minutes = min % 60;
+    return minutes > 0 ? `${hours}h${minutes.toString().padStart(2, '0')}m` : `${hours}h`;
+  }
+  return `${min}m`;
 }
