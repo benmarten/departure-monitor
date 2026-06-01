@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import * as Location from "expo-location";
 import { matchGroup } from "./location";
@@ -31,9 +31,15 @@ export function useActiveLocation(presets: LocationGroup[]): ActiveLocationState
   const [inRange, setInRange] = useState(false);
   const [manualId, setManualId] = useState<string | null>(null);
   const [lastPosition, setLastPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const manualIdRef = useRef<string | null>(null);
+
+  const setManualPin = useCallback((id: string | null) => {
+    manualIdRef.current = id;
+    setManualId(id);
+  }, []);
 
   const detect = useCallback(async () => {
-    setManualId(null);
+    setManualPin(null);
     setStatus("locating");
 
     // On web, requestForegroundPermissionsAsync does NOT show a prompt — only
@@ -46,11 +52,11 @@ export function useActiveLocation(presets: LocationGroup[]): ActiveLocationState
       try {
         perm = (await Location.requestForegroundPermissionsAsync()).status;
       } catch {
-        setStatus("error");
+        if (!manualIdRef.current) setStatus("error");
         return;
       }
       if (perm !== "granted") {
-        setStatus("denied");
+        if (!manualIdRef.current) setStatus("denied");
         return;
       }
     }
@@ -82,19 +88,20 @@ export function useActiveLocation(presets: LocationGroup[]): ActiveLocationState
       /* ignore */
     }
 
-    if (!gotFix) setStatus("error");
-  }, []);
+    if (!gotFix && !manualIdRef.current) setStatus("error");
+  }, [setManualPin]);
 
+  // Detect once on mount. Manual selection must not trigger another detect:
+  // detect intentionally clears the manual pin when the user taps relocate.
   useEffect(() => {
     detect();
+  }, [detect]);
 
-    // Set up continuous location tracking every 30 seconds
-    const interval = setInterval(() => {
-      if (!manualId) {
-        detect();
-      }
-    }, 30_000); // 30 seconds
-
+  // Re-match the nearest group periodically while automatic selection is
+  // active. A manually selected chip stays pinned until relocate() is tapped.
+  useEffect(() => {
+    if (manualId) return;
+    const interval = setInterval(detect, 30_000);
     return () => clearInterval(interval);
   }, [detect, manualId]);
 
@@ -126,7 +133,7 @@ export function useActiveLocation(presets: LocationGroup[]): ActiveLocationState
     }
   }, [presets, lastPosition, manualId]);
 
-  const selectGroup = useCallback((id: string) => setManualId(id), []);
+  const selectGroup = useCallback((id: string) => setManualPin(id), [setManualPin]);
 
   return { group, status, distanceMeters, inRange, selectGroup, relocate: detect, lastPosition };
 }

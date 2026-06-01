@@ -92,23 +92,43 @@ export async function lookupStopCoord(
 
 // ---- Trip parsing -----------------------------------------------------------
 
+type EfaRealtimeStatus = string | string[];
+
+interface EfaStopEvent {
+  name?: string;
+  departureTimePlanned?: string;
+  departureTimeEstimated?: string;
+  arrivalTimePlanned?: string;
+  arrivalTimeEstimated?: string;
+  cancelled?: boolean;
+  isCancelled?: boolean;
+  departureCancelled?: boolean;
+  arrivalCancelled?: boolean;
+  realtimeStatus?: EfaRealtimeStatus;
+}
+
 interface EfaLeg {
-  origin?: {
-    name?: string;
-    departureTimePlanned?: string;
-    departureTimeEstimated?: string;
-  };
-  destination?: {
-    name?: string;
-    arrivalTimePlanned?: string;
-    arrivalTimeEstimated?: string;
-  };
+  origin?: EfaStopEvent;
+  destination?: EfaStopEvent;
+  cancelled?: boolean;
+  isCancelled?: boolean;
+  realtimeStatus?: EfaRealtimeStatus;
   transportation?: {
     number?: string;
     name?: string;
     destination?: { name?: string };
     product?: { class?: number; name?: string };
+    cancelled?: boolean;
+    isCancelled?: boolean;
+    realtimeStatus?: EfaRealtimeStatus;
   };
+}
+
+interface EfaJourney {
+  legs?: EfaLeg[];
+  cancelled?: boolean;
+  isCancelled?: boolean;
+  realtimeStatus?: EfaRealtimeStatus;
 }
 
 /** A leg is "transit" if it rides a vehicle (not a footpath: class 99/100). */
@@ -122,17 +142,73 @@ function minutesBetween(from: number, to: number): number {
   return Math.round((to - from) / 60_000);
 }
 
+function hasCancelledStatus(value?: EfaRealtimeStatus): boolean {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return values.some((status) => /CANCELLED|CANCELED|AUSFALL/i.test(status));
+}
+
+/** EFA variants expose cancellation flags at different nesting levels. */
+function isCancelled(journey: EfaJourney, legs: EfaLeg[]): boolean {
+  if (journey.cancelled || journey.isCancelled || hasCancelledStatus(journey.realtimeStatus)) return true;
+  return legs.some((leg) =>
+    leg.cancelled ||
+    leg.isCancelled ||
+    hasCancelledStatus(leg.realtimeStatus) ||
+    leg.transportation?.cancelled ||
+    leg.transportation?.isCancelled ||
+    hasCancelledStatus(leg.transportation?.realtimeStatus) ||
+    leg.origin?.cancelled ||
+    leg.origin?.isCancelled ||
+    leg.origin?.departureCancelled ||
+    hasCancelledStatus(leg.origin?.realtimeStatus) ||
+    leg.destination?.cancelled ||
+    leg.destination?.isCancelled ||
+    leg.destination?.arrivalCancelled ||
+    hasCancelledStatus(leg.destination?.realtimeStatus)
+  );
+}
+
+const BERLIN_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+function berlinOffsetMs(instantMs: number): number {
+  const parts = Object.fromEntries(
+    BERLIN_TIME_FORMAT.formatToParts(new Date(instantMs))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)])
+  );
+  return Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second) - instantMs;
+}
+
+/** Convert an EFA Europe/Berlin wall-clock value to an absolute instant. */
+function berlinDate(y: number, monthIndex: number, d: number, h: number, min: number, sec: number): Date {
+  const wallClockUtc = Date.UTC(y, monthIndex, d, h, min, sec);
+  let instant = wallClockUtc - berlinOffsetMs(wallClockUtc);
+  // Recalculate at the resulting instant because the first pass can cross a
+  // daylight-saving transition.
+  instant = wallClockUtc - berlinOffsetMs(instant);
+  return new Date(instant);
+}
+
 /**
  * EFA returns timestamps either as:
  *  - ITCS format: "20260530143600" (YYYYMMDDHHMMSS, local German time)
  *  - Full ISO with Z: "2026-05-30T12:47:48Z" (UTC)
  *  - Bare ISO no tz: "2026-05-30T14:36:00" (local German time)
  *
- * Safari/iOS treats a bare "2026-05-30T14:36:00" as UTC, while Chrome
- * treats it as local. The fix: if there's a Z, pass to `new Date()` directly.
- * Otherwise, explicitly construct a local-time Date from the parts.
+ * Timezone-less values are Europe/Berlin wall-clock values. Parse them
+ * independently of the device timezone so a traveller's device configuration
+ * does not shift departures.
  */
-function parseEfaDate(raw: string): Date {
+export function parseEfaDate(raw: string): Date {
   const s = raw.trim();
 
   // ITCS format: YYYYMMDDHHMMSS (14 digits) or YYYYMMDDHHMM (12 digits)
@@ -143,17 +219,17 @@ function parseEfaDate(raw: string): Date {
     const h = +s.slice(8, 10);
     const min = +s.slice(10, 12);
     const sec = s.length >= 14 ? +s.slice(12, 14) : 0;
-    return new Date(y, m, d, h, min, sec);
+    return berlinDate(y, m, d, h, min, sec);
   }
 
-  // Full ISO with Z — let the JS engine handle it
-  if (s.endsWith("Z")) return new Date(s);
+  // Full ISO with an explicit timezone — let the JS engine handle it.
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(s)) return new Date(s);
 
-  // Bare "2026-05-30T14:36:00" — Safari bug: construct local Date explicitly
+  // Bare "2026-05-30T14:36:00" — construct a Berlin wall-clock Date explicitly.
   const [datePart, timePart] = s.split("T");
   const [y, mo, d] = datePart.split(/[-/]/).map(Number);
   const [h = 0, mi = 0, se = 0] = (timePart ?? "").split(":").map(Number);
-  return new Date(y, (mo ?? 1) - 1, d ?? 1, h, mi, se);
+  return berlinDate(y, (mo ?? 1) - 1, d ?? 1, h, mi, se);
 }
 
 /**
@@ -174,7 +250,7 @@ export async function fetchRouteDepartures(
 
   const res = await fetchJson(url, opts.signal);
   if (!res.ok) throw new Error(`Route ${route.start.name} → ${route.end.name}: HTTP ${res.status}`);
-  const data = (await res.json()) as { journeys?: { legs?: EfaLeg[] }[], systemMessages?: { type: string; text: string }[] };
+  const data = (await res.json()) as { journeys?: EfaJourney[], systemMessages?: { type: string; text: string }[] };
 
   const wanted = (route.lines ?? []).map(normalizeLine);
   const out: RouteDeparture[] = [];
@@ -220,7 +296,7 @@ export async function fetchRouteDepartures(
       travelMinutes:
         arrWhen != null ? minutesBetween(depWhen.getTime(), arrWhen.getTime()) : null,
       transfers: transit.length - 1,
-      cancelled: false,
+      cancelled: isCancelled(journey, transit),
     });
   }
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DepartureRow } from "../components/DepartureRow";
@@ -52,7 +52,19 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
     Platform.OS !== "web" ||
     (typeof navigator !== "undefined" && (navigator as any).maxTouchPoints > 0);
 
-  const now = lastUpdated?.getTime() ?? Date.now();
+  const [now, setNow] = useState(() => Date.now());
+
+  // Countdown and reachability values must advance between timetable fetches.
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Re-evaluate immediately when a fetch completes instead of waiting for the
+  // next clock tick.
+  useEffect(() => {
+    setNow(Date.now());
+  }, [lastUpdated]);
 
   // Live route-mode lookup so toggling a route's mode recolors instantly
   // without refetching departures from the network.
@@ -70,8 +82,7 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
     return parts.join(" · ");
   }, [status, distanceMeters, inRange]);
 
-  // Unified, time-sorted list across all routes, evaluated at the last fetch time.
-  // Pull-to-refresh or browser refresh updates the countdown/reach calculations.
+  // Unified, time-sorted list across all routes, evaluated against the live clock.
   // Also hides unreachable (red) departures when the setting is on.
   const merged = useMemo(
     () =>
@@ -79,12 +90,13 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
         .flatMap((g) => g.departures)
         .filter((d) => d.depWhen.getTime() > now - 30_000)
         .filter((d) => {
+          if (d.cancelled) return true;
           if (!settings.hideUnreachable || !settings.enabled) return true;
           const r = computeReach(d, active.lastPosition, settings, now, modeByRoute.get(d.routeId));
           return r === null || r.level !== "red";
         })
         .sort((a, b) => a.depWhen.getTime() - b.depWhen.getTime()),
-    [byRoute, now, settings.enabled, settings.hideUnreachable, active.lastPosition, modeByRoute]
+    [byRoute, now, settings, active.lastPosition, modeByRoute]
   );
 
   return (
