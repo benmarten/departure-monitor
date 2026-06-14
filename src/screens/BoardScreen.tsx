@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DepartureRow } from "../components/DepartureRow";
 import { t } from "../i18n";
@@ -42,6 +42,16 @@ function overrideLabel(value: "walk" | "bike" | null): string {
   return `🌐 ${t("global")}`;
 }
 
+function nextSortBy(value: "totalTime" | "departure" | "arrival"): "totalTime" | "departure" | "arrival" {
+  return value === "totalTime" ? "departure" : value === "departure" ? "arrival" : "totalTime";
+}
+
+function sortByLabel(value: "totalTime" | "departure" | "arrival"): string {
+  if (value === "totalTime") return `⏱ ${t("sortTotalTime")}`;
+  if (value === "arrival") return `🏁 ${t("sortArrival")}`;
+  return `🚀 ${t("sortDeparture")}`;
+}
+
 export function BoardScreen({ presets, active, departures, settings, updateSettings, onOpenRoutes, onOpenSettings }: Props) {
   const insets = useSafeAreaInsets();
   const { group, status, distanceMeters, inRange } = active;
@@ -82,7 +92,19 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
     return parts.join(" · ");
   }, [status, distanceMeters, inRange]);
 
-  // Unified, time-sorted list across all routes, evaluated against the live clock.
+  // Auto-load more departures when scrolled near the bottom
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 300; // Trigger when within 300px of bottom
+    const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+
+    if (isNearBottom && !loading && !loadingMore && !isDemo && merged.length > 0) {
+      loadMore();
+    }
+  };
+
+  // Unified list across all routes, evaluated against the live clock.
+  // Sorted according to user preference (total time, departure, or arrival).
   // Also hides unreachable (red) departures when the setting is on.
   const merged = useMemo(
     () =>
@@ -95,7 +117,38 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
           const r = computeReach(d, active.lastPosition, settings, now, modeByRoute.get(d.routeId));
           return r === null || r.level !== "red";
         })
-        .sort((a, b) => a.depWhen.getTime() - b.depWhen.getTime()),
+        .sort((a, b) => {
+          if (settings.sortBy === "totalTime") {
+            // Calculate total travel time for both departures
+            const reachA = computeReach(a, active.lastPosition, settings, now, modeByRoute.get(a.routeId));
+            const reachB = computeReach(b, active.lastPosition, settings, now, modeByRoute.get(b.routeId));
+
+            const totalA = reachA && a.travelMinutes != null
+              ? reachA.travelMin + reachA.slackMin + a.travelMinutes
+              : null;
+            const totalB = reachB && b.travelMinutes != null
+              ? reachB.travelMin + reachB.slackMin + b.travelMinutes
+              : null;
+
+            // If both have total time, sort by total time (quickest first)
+            if (totalA != null && totalB != null) return totalA - totalB;
+            // If only one has total time, prioritize it
+            if (totalA != null) return -1;
+            if (totalB != null) return 1;
+            // Otherwise fall back to departure time
+            return a.depWhen.getTime() - b.depWhen.getTime();
+          } else if (settings.sortBy === "arrival") {
+            // Sort by arrival time (earliest arrival first)
+            const arrA = a.arrWhen?.getTime() ?? Infinity;
+            const arrB = b.arrWhen?.getTime() ?? Infinity;
+            if (arrA !== arrB) return arrA - arrB;
+            // Fall back to departure time if arrivals are equal
+            return a.depWhen.getTime() - b.depWhen.getTime();
+          } else {
+            // Sort by departure time (default)
+            return a.depWhen.getTime() - b.depWhen.getTime();
+          }
+        }),
     [byRoute, now, settings, active.lastPosition, modeByRoute]
   );
 
@@ -104,6 +157,8 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#9CA3AF" />}
+        onScroll={handleScroll}
+        scrollEventThrottle={400}
       >
         {/* Header */}
         <View className="flex-row items-center justify-between mb-1">
@@ -151,34 +206,45 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
           })}
         </View>
 
-        {settings.enabled && (
-          <View className="flex-row items-center gap-1.5 mb-4 flex-wrap">
-            <Pressable
-              onPress={() => updateSettings({ override: nextOverride(settings.override) })}
-              className="px-2.5 py-1 rounded-full bg-blue-600"
-            >
-              <Text className="text-xs font-semibold text-white">{overrideLabel(settings.override)}</Text>
-            </Pressable>
+        <View className="flex-row items-center gap-1.5 mb-4 flex-wrap">
+          {settings.enabled && (
+            <>
+              <Pressable
+                onPress={() => updateSettings({ override: nextOverride(settings.override) })}
+                className="px-2.5 py-1 rounded-full bg-blue-600"
+              >
+                <Text className="text-xs font-semibold text-white">{overrideLabel(settings.override)}</Text>
+              </Pressable>
 
-            <Pressable
-              onPress={() => updateSettings({ hideUnreachable: !settings.hideUnreachable })}
-              className={`px-2.5 py-1 rounded-full ${settings.hideUnreachable ? "bg-blue-600" : "bg-neutral-200 dark:bg-neutral-800"}`}
-            >
-              <Text className={`text-xs font-semibold ${settings.hideUnreachable ? "text-white" : "text-neutral-600 dark:text-neutral-300"}`}>
-                {settings.hideUnreachable ? `🙈 ${t("hidden")}` : `👁️ ${t("all")}`}
-              </Text>
-            </Pressable>
+              <Pressable
+                onPress={() => updateSettings({ hideUnreachable: !settings.hideUnreachable })}
+                className={`px-2.5 py-1 rounded-full ${settings.hideUnreachable ? "bg-blue-600" : "bg-neutral-200 dark:bg-neutral-800"}`}
+              >
+                <Text className={`text-xs font-semibold ${settings.hideUnreachable ? "text-white" : "text-neutral-600 dark:text-neutral-300"}`}>
+                  {settings.hideUnreachable ? `🙈 ${t("hidden")}` : `👁️ ${t("all")}`}
+                </Text>
+              </Pressable>
 
-            <Pressable
-              onPress={() => updateSettings({ departureDisplay: settings.departureDisplay === "countdown" ? "leaveBy" : "countdown" })}
-              className="px-2.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-800"
-            >
-              <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-                {settings.departureDisplay === "countdown" ? `⏱ ${t("depart")}` : `🚶 ${t("leaveBy")}`}
-              </Text>
-            </Pressable>
-          </View>
-        )}
+              <Pressable
+                onPress={() => updateSettings({ departureDisplay: settings.departureDisplay === "countdown" ? "leaveBy" : "countdown" })}
+                className="px-2.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-800"
+              >
+                <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+                  {settings.departureDisplay === "countdown" ? `⏱ ${t("depart")}` : `🚶 ${t("leaveBy")}`}
+                </Text>
+              </Pressable>
+            </>
+          )}
+
+          <Pressable
+            onPress={() => updateSettings({ sortBy: nextSortBy(settings.sortBy) })}
+            className="px-2.5 py-1 rounded-full bg-neutral-200 dark:bg-neutral-800"
+          >
+            <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+              {sortByLabel(settings.sortBy)}
+            </Text>
+          </Pressable>
+        </View>
 
         {isDemo && (
           <View className="rounded-xl bg-amber-100 dark:bg-amber-900/40 p-2.5 mb-3">
@@ -206,7 +272,7 @@ export function BoardScreen({ presets, active, departures, settings, updateSetti
           </View>
         ) : (
           <>
-            <View className="gap-2">
+            <View className="gap-3">
               {merged.map((d) => (
                 <DepartureRow
                   key={d.key}

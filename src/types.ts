@@ -57,6 +57,8 @@ export interface ReachSettings {
   waitGreenMaxMin: number;
   /** Wait/slack time below this is yellow; higher is red. */
   waitYellowMaxMin: number;
+  /** Sort order for departure list. */
+  sortBy: "totalTime" | "departure" | "arrival";
 }
 
 /** A named, GPS-anchored group of routes. */

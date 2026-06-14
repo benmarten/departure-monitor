@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: ReachSettings = {
   departureDisplay: "countdown",
   waitGreenMaxMin: 15,
   waitYellowMaxMin: 30,
+  sortBy: "totalTime",
 };
 
 async function load(): Promise<ReachSettings> {

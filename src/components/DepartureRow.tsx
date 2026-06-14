@@ -41,34 +41,48 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
     ? `${REACH_ICON[reach.mode]} ${minutesLabel(leaveInMin)}`
     : minutesLabel(min);
 
+  // Calculate total travel time: walk/bike + wait + train time
+  const totalTime = reach && dep.travelMinutes != null
+    ? reach.travelMin + reach.slackMin + dep.travelMinutes
+    : null;
+
   return (
     <Pressable
       onPress={() => setExpanded(!expanded)}
-      className={`flex-row items-center gap-3 rounded-2xl p-3 bg-white dark:bg-neutral-900 ${
+      className={`flex-row items-center gap-3 rounded-2xl p-4 bg-white dark:bg-neutral-900 shadow-sm ${
         dep.cancelled ? "opacity-50" : ""
       }`}
     >
       <View className="flex-row items-center gap-3 flex-1">
         <View
-          className="min-w-[44px] h-8 rounded-lg items-center justify-center px-2 self-start mt-0.5"
+          className="min-w-[48px] h-9 rounded-lg items-center justify-center px-2.5 self-start shadow-sm"
           style={{ backgroundColor: lineColor(dep.line) }}
         >
-          <Text className="text-white font-extrabold text-sm">{dep.line}</Text>
+          <Text className="text-white font-black text-base">{dep.line}</Text>
         </View>
 
         <View className="flex-1 min-w-0">
-          <Text className="text-neutral-900 dark:text-neutral-50 text-[15px] font-normal" numberOfLines={expanded ? undefined : 2}>
+          <Text className="text-neutral-900 dark:text-neutral-50 text-base font-semibold leading-tight" numberOfLines={expanded ? undefined : 2}>
             {dep.headsign ? routeName(dep.headsign) : dep.product || "—"}
           </Text>
-          <Text className="text-neutral-400 dark:text-neutral-500 text-[11px]" numberOfLines={expanded ? undefined : 1}>
+          <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5" numberOfLines={expanded ? undefined : 1}>
             {routeName(dep.originLabel)} → {routeName(dep.destinationLabel)}
           </Text>
           {!expanded && (
-            <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5" numberOfLines={1}>
-              {dep.arrWhen ? `${t("arrives")} ${formatClock(dep.arrWhen)}` : dep.product}
-              {dep.travelMinutes != null ? ` · ${dep.travelMinutes}'` : ""}
-              {dep.transfers > 0 ? ` · ${dep.transfers}× ${t("change")}` : ""}
-            </Text>
+            <View className="gap-1 mt-1.5">
+              <Text className="text-neutral-500 dark:text-neutral-400 text-xs" numberOfLines={1}>
+                {dep.arrWhen ? `${t("arrives")} ${formatClock(dep.arrWhen)}` : dep.product}
+                {dep.travelMinutes != null ? ` · ${dep.travelMinutes}'` : ""}
+                {dep.transfers > 0 ? ` · ${dep.transfers}× ${t("change")}` : ""}
+              </Text>
+              {totalTime != null && (
+                <View className="flex-row items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 self-start px-2 py-0.5 rounded-md">
+                  <Text className="text-neutral-700 dark:text-neutral-300 text-xs font-semibold">
+                    ⏱ {Math.round(totalTime)} min
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
           {expanded && (
             <View className="mt-2 gap-1">
@@ -98,6 +112,11 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
               )}
               {reach && (
                 <>
+                  {totalTime != null && (
+                    <Text className="text-neutral-700 dark:text-neutral-300 text-xs">
+                      <Text className="font-bold">{t("totalTime")}:</Text> {Math.round(totalTime)} min
+                    </Text>
+                  )}
                   <Text className="text-neutral-500 dark:text-neutral-400 text-xs">
                     <Text className="font-semibold">{t("travelTime")}:</Text> {REACH_ICON[reach.mode]} {reach.travelMin} min
                   </Text>
@@ -120,15 +139,15 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
           )}
         </View>
 
-        <View className="items-end min-w-[58px] self-start mt-0.5">
+        <View className="items-end min-w-[62px] self-start">
           {dep.cancelled ? (
             <Text className="text-red-500 font-bold text-sm">{t("cancelled")}</Text>
           ) : (
-            <View>
-              <Text className={`text-xl font-extrabold ${minColor}`}>{primaryLabel}</Text>
+            <View className="items-end">
+              <Text className={`text-2xl font-black ${minColor} leading-tight`}>{primaryLabel}</Text>
               {!expanded && (
                 <>
-                  <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5">
+                  <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-1">
                     {formatClock(dep.depWhen)}
                     {late ? (
                       <Text className={`${REACH_TEXT.red} font-bold`}> +{dep.delayMinutes}</Text>
@@ -138,13 +157,18 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
                     ) : null}
                   </Text>
                   {reach ? (
-                    <View className="flex-row items-center gap-1 mt-0.5">
+                    <View className="flex-row items-center flex-wrap gap-1 mt-1 justify-end">
                       <Text className="text-[11px] text-neutral-500 dark:text-neutral-400">
                         {REACH_ICON[reach.mode]} {reach.travelMin}'
                       </Text>
                       {reach.slackMin > 0 ? (
                         <Text className={`text-[11px] ${waitColor(reach.slackMin, settings)}`}>
                           ⏳ {Math.round(reach.slackMin)}'
+                        </Text>
+                      ) : null}
+                      {dep.travelMinutes != null ? (
+                        <Text className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                          🚆 {dep.travelMinutes}'
                         </Text>
                       ) : null}
                     </View>
