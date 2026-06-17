@@ -54,11 +54,20 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
       }`}
     >
       <View className="flex-row items-center gap-3 flex-1">
-        <View
-          className="min-w-[48px] h-9 rounded-lg items-center justify-center px-2.5 self-start shadow-sm"
-          style={{ backgroundColor: lineColor(dep.line) }}
-        >
-          <Text className="text-white font-black text-base">{dep.line}</Text>
+        <View className="items-center self-start gap-1">
+          <View
+            className="min-w-[48px] h-9 rounded-lg items-center justify-center px-2.5 shadow-sm"
+            style={{ backgroundColor: lineColor(dep.line) }}
+          >
+            <Text className="text-white font-black text-base">{dep.line}</Text>
+          </View>
+          {dep.platform && (
+            <View className="bg-neutral-200 dark:bg-neutral-700 px-1.5 py-0.5 rounded">
+              <Text className="text-neutral-600 dark:text-neutral-300 text-[10px] font-semibold">
+                {dep.platform}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View className="flex-1 min-w-0">
@@ -97,6 +106,11 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
               {dep.depPlanned && dep.delayMinutes !== 0 && (
                 <Text className="text-neutral-500 dark:text-neutral-400 text-xs">
                   <Text className="font-semibold">{t("planned")}:</Text> {formatClock(dep.depPlanned)}
+                </Text>
+              )}
+              {dep.platform && (
+                <Text className="text-neutral-500 dark:text-neutral-400 text-xs">
+                  <Text className="font-semibold">{t("platform")}:</Text> {dep.platform}
                 </Text>
               )}
               {dep.arrWhen && (

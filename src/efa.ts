@@ -100,6 +100,12 @@ interface EfaStopEvent {
   departureTimeEstimated?: string;
   arrivalTimePlanned?: string;
   arrivalTimeEstimated?: string;
+  properties?: {
+    platformName?: string;
+    platform?: string;
+    plannedPlatformName?: string;
+    [key: string]: any;
+  };
   cancelled?: boolean;
   isCancelled?: boolean;
   departureCancelled?: boolean;
@@ -277,6 +283,13 @@ export async function fetchRouteDepartures(
     const delayMinutes =
       depPlanned != null ? minutesBetween(depPlanned.getTime(), depWhen.getTime()) : null;
 
+    // Extract platform information from origin.properties and clean it
+    const rawPlatform = first.origin?.properties?.platformName ||
+                        first.origin?.properties?.platform ||
+                        null;
+    // Remove "Gleis " prefix if present (e.g., "Gleis 3" → "3")
+    const platform = rawPlatform ? rawPlatform.replace(/^Gleis\s+/i, '').trim() : null;
+
     out.push({
       key: `${route.id}:${line}:${depEstIso}`,
       routeId: route.id,
@@ -290,6 +303,7 @@ export async function fetchRouteDepartures(
       headsign: first.transportation?.destination?.name ?? "",
       depWhen,
       depPlanned,
+      platform,
       arrWhen,
       delayMinutes,
       minutesUntil: minutesBetween(opts.now, depWhen.getTime()),
@@ -329,6 +343,7 @@ export function demoRouteDepartures(route: RouteConfig, now: number): RouteDepar
       headsign: route.end.name,
       depWhen,
       depPlanned: new Date(depWhen.getTime() - delay * 60_000),
+      platform: n === 0 ? "2" : null, // Demo: first departure has platform
       arrWhen,
       delayMinutes: delay,
       minutesUntil: offset,

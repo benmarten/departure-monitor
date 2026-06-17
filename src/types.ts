@@ -97,6 +97,8 @@ export interface RouteDeparture {
   depWhen: Date;
   /** Planned departure instant, if known. */
   depPlanned: Date | null;
+  /** Platform/track (Gleis) for departure, if known. */
+  platform: string | null;
   /** Realtime arrival instant at the destination, if known. */
   arrWhen: Date | null;
   /** Delay in whole minutes at departure (positive = late), or null. */
