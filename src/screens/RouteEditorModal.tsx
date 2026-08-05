@@ -5,6 +5,7 @@ import { StationSearchField } from "../components/StationSearchField";
 import { t } from "../i18n";
 import { makeId } from "../storage";
 import { EfaStop, RouteConfig, RouteLeg } from "../types";
+import { parseMinutesOverride } from "./routeEditor";
 
 interface Props { visible: boolean; initial: RouteConfig | null; onSave: (route: RouteConfig) => void; onClose: () => void; }
 type DraftLeg = { id: string; type: "transit" | "walk" | "bike"; from: EfaStop | null; to: EfaStop | null; linesText: string; minutesText: string };
@@ -34,12 +35,15 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
     [next[index], next[target]] = [next[target], next[index]]; return next;
   });
   const connected = legs.every((leg, i) => i === 0 || legs[i - 1].to?.id === leg.from?.id);
-  const canSave = legs.some((leg) => leg.type === "transit") && legs.every((leg) => leg.from && leg.to) && connected;
+  const validOverrides = legs.every((leg) =>
+    leg.type === "transit" || leg.minutesText.trim() === "" || parseMinutesOverride(leg.minutesText) != null
+  );
+  const canSave = legs.some((leg) => leg.type === "transit") && legs.every((leg) => leg.from && leg.to) && connected && validOverrides;
   function save() {
     if (!canSave) return;
     const normalized = legs.map((leg): RouteLeg => leg.type === "transit"
       ? { id: leg.id, type: "transit", from: leg.from!, to: leg.to!, lines: leg.linesText.split(/[,\s]+/).filter(Boolean) }
-      : { id: leg.id, type: leg.type, from: leg.from!, to: leg.to!, minutesOverride: leg.minutesText ? Number(leg.minutesText) : undefined });
+      : { id: leg.id, type: leg.type, from: leg.from!, to: leg.to!, minutesOverride: parseMinutesOverride(leg.minutesText) });
     onSave({ id: initial?.id ?? makeId("rt"), name: initial?.name, legs: normalized, mode: initial?.mode });
   }
 
