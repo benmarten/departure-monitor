@@ -16,8 +16,8 @@ export default function App() {
   const scheme = useColorScheme();
   const presetsState = usePresets();
   const active = useActiveLocation(presetsState.presets);
-  const departures = useDepartures(active.group);
   const { settings, update: updateSettings } = useAppSettings();
+  const departures = useDepartures(active.group, settings);
   const [showRoutes, setShowRoutes] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 

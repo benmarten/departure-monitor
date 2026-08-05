@@ -27,8 +27,9 @@ export function distanceMeters(
 export function groupCenter(group: LocationGroup): { lat: number; lng: number } {
   const pts: { lat: number; lng: number }[] = [];
   for (const r of group.routes) {
-    if (r.start.lat != null && r.start.lng != null) {
-      pts.push({ lat: r.start.lat, lng: r.start.lng });
+    const start = r.legs?.[0]?.from ?? r.start;
+    if (start?.lat != null && start.lng != null) {
+      pts.push({ lat: start.lat, lng: start.lng });
     }
   }
   if (pts.length === 0) return { lat: group.anchor.lat, lng: group.anchor.lng };

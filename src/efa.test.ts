@@ -10,12 +10,18 @@ afterEach(() => {
 
 const route: RouteConfig = {
   id: "route",
-  start: { id: "start", name: "Start" },
-  end: { id: "end", name: "End" },
+  legs: [{ id: "leg", type: "transit", from: { id: "start", name: "Start" }, to: { id: "end", name: "End" } }],
 };
 
 function mockJourneys(journeys: unknown[]): void {
   globalThis.fetch = (async () => new Response(JSON.stringify({ journeys }), { status: 200 })) as unknown as typeof fetch;
+}
+
+function transitJourney(line: string, dep: string, arr: string, cancelled = false) {
+  return { cancelled, legs: [{
+    origin: { departureTimePlanned: dep }, destination: { arrivalTimePlanned: arr },
+    transportation: { number: line, destination: { name: "Headsign" }, product: { class: 1, name: "S-Bahn" } },
+  }] };
 }
 
 describe("normalizeLine", () => {
@@ -59,6 +65,29 @@ describe("parseEfaDate", () => {
 });
 
 describe("fetchRouteDepartures", () => {
+  test("selects a reachable onward train after a manual transfer", async () => {
+    const responses = [
+      [transitJourney("S2", "2026-05-30T14:00:00", "2026-05-30T14:10:00")],
+      [
+        transitJourney("RE1", "2026-05-30T14:15:00", "2026-05-30T14:35:00"),
+        transitJourney("RE1", "2026-05-30T14:22:00", "2026-05-30T14:42:00", true),
+      ],
+    ];
+    globalThis.fetch = (async () => new Response(JSON.stringify({ journeys: responses.shift() }), { status: 200 })) as unknown as typeof fetch;
+    const multistep: RouteConfig = { id: "multi", legs: [
+      { id: "one", type: "transit", from: { id: "a", name: "A" }, to: { id: "b", name: "B" }, lines: ["S2"] },
+      { id: "bike", type: "bike", from: { id: "b", name: "B" }, to: { id: "c", name: "C" }, minutesOverride: 10 },
+      { id: "two", type: "transit", from: { id: "c", name: "C" }, to: { id: "d", name: "D" }, lines: ["RE1"] },
+    ] };
+    const departures = await fetchRouteDepartures(multistep, { results: 3, now: parseEfaDate("2026-05-30T13:00:00").getTime() });
+    expect(departures).toHaveLength(1);
+    expect(departures[0].itineraryLegs.map((leg) => leg.type)).toEqual(["transit", "bike", "transit"]);
+    expect(departures[0].itineraryLegs[2].depWhen?.toISOString()).toBe("2026-05-30T12:22:00.000Z");
+    expect(departures[0].arrWhen?.toISOString()).toBe("2026-05-30T12:42:00.000Z");
+    expect(departures[0].travelMinutes).toBe(42);
+    expect(departures[0].cancelled).toBe(true);
+  });
+
   test("uses estimated times and calculates the departure delay", async () => {
     mockJourneys([
       {

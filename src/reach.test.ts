@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { computeReach } from "./reach";
+import { computeReach, estimateTransferMinutes } from "./reach";
 import { RouteDeparture, ReachSettings } from "./types";
 
 function dep(overrides: Partial<RouteDeparture> = {}): RouteDeparture {
@@ -13,12 +13,14 @@ function dep(overrides: Partial<RouteDeparture> = {}): RouteDeparture {
     headsign: "Stop B",
     depWhen: new Date(Date.now() + 20 * 60_000),   // 20 min from now
     depPlanned: null,
+    platform: null,
     arrWhen: null,
     delayMinutes: null,
     minutesUntil: 20,
     travelMinutes: null,
     transfers: 0,
     cancelled: false,
+    itineraryLegs: [],
     ...overrides,
   };
 }
@@ -35,7 +37,26 @@ const baseSettings: ReachSettings = {
   departureDisplay: "countdown",
   waitGreenMaxMin: 10,
   waitYellowMaxMin: 20,
+  sortBy: "departure",
 };
+
+describe("estimateTransferMinutes", () => {
+  const from = { id: "a", name: "A", lat: 49, lng: 8.4 };
+  const to = { id: "b", name: "B", lat: 49.009, lng: 8.4 };
+
+  test("uses the selected bike or walk speed", () => {
+    const bike = estimateTransferMinutes(from, to, "bike", baseSettings);
+    const walk = estimateTransferMinutes(from, to, "walk", baseSettings);
+    expect(bike).not.toBeNull();
+    expect(walk).not.toBeNull();
+    expect(bike!).toBeLessThan(walk!);
+  });
+
+  test("returns null for missing coordinates or zero speed", () => {
+    expect(estimateTransferMinutes({ id: "x", name: "X" }, to, "walk", baseSettings)).toBeNull();
+    expect(estimateTransferMinutes(from, to, "bike", { ...baseSettings, bikeKmh: 0 })).toBeNull();
+  });
+});
 
 describe("computeReach", () => {
   test("returns null when disabled", () => {

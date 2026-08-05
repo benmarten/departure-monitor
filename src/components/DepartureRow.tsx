@@ -75,7 +75,9 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
             {dep.headsign ? routeName(dep.headsign) : dep.product || "—"}
           </Text>
           <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5" numberOfLines={expanded ? undefined : 1}>
-            {routeName(dep.originLabel)} → {routeName(dep.destinationLabel)}
+            {dep.itineraryLegs.length > 0
+              ? dep.itineraryLegs.map((leg, index) => `${index === 0 ? routeName(leg.fromLabel) : ""} → ${leg.type === "transit" ? "" : `${leg.type} `}${routeName(leg.toLabel)}`).join("")
+              : `${routeName(dep.originLabel)} → ${routeName(dep.destinationLabel)}`}
           </Text>
           {!expanded && (
             <View className="gap-1 mt-1.5">
@@ -83,6 +85,7 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
                 {dep.arrWhen ? `${t("arrives")} ${formatClock(dep.arrWhen)}` : dep.product}
                 {dep.travelMinutes != null ? ` · ${dep.travelMinutes}'` : ""}
                 {dep.transfers > 0 ? ` · ${dep.transfers}× ${t("change")}` : ""}
+                {dep.itineraryLegs.some((leg) => leg.type !== "transit") ? " · 🚲/🚶 transfer" : ""}
               </Text>
               {totalTime != null && (
                 <View className="flex-row items-center gap-1.5 bg-neutral-100 dark:bg-neutral-800 self-start px-2 py-0.5 rounded-md">
@@ -95,6 +98,20 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
           )}
           {expanded && (
             <View className="mt-2 gap-1">
+              {dep.itineraryLegs.map((leg, index) => (
+                <View key={`${leg.id}:${index}`} className="mt-1.5 border-l-2 border-neutral-200 dark:border-neutral-700 pl-2">
+                  <Text className="text-neutral-700 dark:text-neutral-300 text-xs font-bold">
+                    {leg.type === "transit" ? `🚆 ${leg.line ?? "—"}` : leg.type === "bike" ? "🚲 Bike" : "🚶 Walk"}
+                    {leg.cancelled ? ` · ${t("cancelled")}` : ""}
+                  </Text>
+                  <Text className="text-neutral-500 dark:text-neutral-400 text-xs">
+                    {stopShort(leg.fromLabel)}{leg.depWhen ? ` ${formatClock(leg.depWhen)}` : ""}
+                    {leg.platform ? ` · ${t("platform")} ${leg.platform}` : ""} → {stopShort(leg.toLabel)}
+                    {leg.arrWhen ? ` ${formatClock(leg.arrWhen)}` : ""}
+                    {leg.travelMinutes != null ? ` · ${Math.round(leg.travelMinutes)} min` : ""}
+                  </Text>
+                </View>
+              ))}
               <Text className="text-neutral-500 dark:text-neutral-400 text-xs">
                 <Text className="font-semibold">{t("product")}:</Text> {dep.product}
               </Text>

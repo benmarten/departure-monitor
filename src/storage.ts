@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { LocationGroup } from "./types";
+import { LocationGroup, RouteConfig, RouteLeg } from "./types";
 
-const STORAGE_KEY = "kvv-board:presets:v1";
+const STORAGE_KEY = "kvv-board:presets:v2";
+const LEGACY_STORAGE_KEY = "kvv-board:presets:v1";
 
 /**
  * Default presets, mirroring the example structure:
@@ -21,8 +22,8 @@ export const DEFAULT_PRESETS: LocationGroup[] = [
     name: "Friedrichstal",
     anchor: { lat: 49.1072, lng: 8.4764, radiusMeters: 1500 },
     routes: [
-      { id: "rt-mitte-muehlburg", start: MITTE, end: MUEHLBURG, lines: [] },
-      { id: "rt-bahnhof-hbf", start: BAHNHOF, end: HBF, lines: [] },
+      { id: "rt-mitte-muehlburg", legs: [{ id: "leg-mitte-muehlburg", type: "transit", from: MITTE, to: MUEHLBURG, lines: [] }] },
+      { id: "rt-bahnhof-hbf", legs: [{ id: "leg-bahnhof-hbf", type: "transit", from: BAHNHOF, to: HBF, lines: [] }] },
     ],
   },
   {
@@ -30,20 +31,41 @@ export const DEFAULT_PRESETS: LocationGroup[] = [
     name: "Karlsruhe",
     anchor: { lat: 48.9936, lng: 8.4017, radiusMeters: 2000 },
     routes: [
-      { id: "rt-muehlburg-mitte", start: MUEHLBURG, end: MITTE, lines: [] },
-      { id: "rt-hbf-bahnhof", start: HBF, end: BAHNHOF, lines: [] },
+      { id: "rt-muehlburg-mitte", legs: [{ id: "leg-muehlburg-mitte", type: "transit", from: MUEHLBURG, to: MITTE, lines: [] }] },
+      { id: "rt-hbf-bahnhof", legs: [{ id: "leg-hbf-bahnhof", type: "transit", from: HBF, to: BAHNHOF, lines: [] }] },
     ],
   },
 ];
 
 /** Load saved presets, or seed with defaults on first run / parse failure. */
+export function normalizeRoute(route: any): RouteConfig | null {
+  if (!route || typeof route.id !== "string") return null;
+  let legs: RouteLeg[] = Array.isArray(route.legs) ? route.legs : [];
+  if (legs.length === 0 && route.start && route.end) {
+    legs = [{ id: makeId("leg"), type: "transit", from: route.start, to: route.end, lines: route.lines }];
+  }
+  if (legs.length === 0) return null;
+  return { id: route.id, name: route.name, legs, mode: route.mode };
+}
+
+function normalizePresets(value: unknown): LocationGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((group: any) => ({
+    ...group,
+    routes: Array.isArray(group.routes)
+      ? group.routes.map(normalizeRoute).filter((route: RouteConfig | null): route is RouteConfig => route != null)
+      : [],
+  }));
+}
+
 export async function loadPresets(): Promise<LocationGroup[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const current = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = current ?? await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as LocationGroup[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
+    const normalized = normalizePresets(JSON.parse(raw));
+    if (current == null) await savePresets(normalized);
+    return normalized;
   } catch {
     return DEFAULT_PRESETS;
   }
