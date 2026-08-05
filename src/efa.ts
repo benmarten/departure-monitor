@@ -186,6 +186,18 @@ const BERLIN_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
+function efaRequestTime(instantMs: number): { date: string; time: string } {
+  const parts = Object.fromEntries(
+    BERLIN_TIME_FORMAT.formatToParts(new Date(instantMs))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return {
+    date: `${parts.year}${parts.month}${parts.day}`,
+    time: `${parts.hour}${parts.minute}`,
+  };
+}
+
 function berlinOffsetMs(instantMs: number): number {
   const parts = Object.fromEntries(
     BERLIN_TIME_FORMAT.formatToParts(new Date(instantMs))
@@ -265,12 +277,13 @@ export async function fetchTransitLegDepartures(
   lines: string[] | undefined,
   opts: FetchOptions
 ): Promise<RouteDepartureLeg[]> {
+  const requestTime = efaRequestTime(opts.now);
   const url =
     `${EFA_BASE}/XML_TRIP_REQUEST2?language=de&outputFormat=rapidJSON` +
     `&type_origin=stop&name_origin=${encodeURIComponent(from.id)}` +
     `&type_destination=stop&name_destination=${encodeURIComponent(to.id)}` +
     `&useRealtime=1&calcNumberOfTrips=${Math.max(opts.results + 4, 6)}` +
-    `&itdDateTimeDepArr=dep`;
+    `&itdDateTimeDepArr=dep&itdDate=${requestTime.date}&itdTime=${requestTime.time}`;
 
   const res = await fetchJson(url, opts.signal);
   if (!res.ok) throw new Error(`Route ${from.name} → ${to.name}: HTTP ${res.status}`);
@@ -335,11 +348,6 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
   const legs = routeLegs(route);
   const transitLegs = legs.filter((leg): leg is Extract<RouteLeg, { type: "transit" }> => leg.type === "transit");
   if (transitLegs.length === 0) return [];
-  const fetched = new Map<string, RouteDepartureLeg[]>();
-  await Promise.all(transitLegs.map(async (leg) => {
-    const departures = await fetchTransitLegDepartures(leg.from, leg.to, leg.lines, opts);
-    fetched.set(leg.id, departures.map((departure) => ({ ...departure, id: leg.id })));
-  }));
 
   const firstTransitIndex = legs.findIndex((leg) => leg.type === "transit");
   let earliestFirst = opts.now;
@@ -349,7 +357,11 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
     if (minutes == null) return [];
     earliestFirst += minutes * 60_000;
   }
-  const candidates = fetched.get(transitLegs[0].id) ?? [];
+  const firstTransit = transitLegs[0];
+  const candidates = (await fetchTransitLegDepartures(firstTransit.from, firstTransit.to, firstTransit.lines, {
+    ...opts,
+    now: earliestFirst,
+  })).map((departure) => ({ ...departure, id: firstTransit.id }));
   const out: RouteDeparture[] = [];
   for (const candidate of candidates) {
     if (!candidate.depWhen || candidate.depWhen.getTime() < earliestFirst) continue;
@@ -362,11 +374,11 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
     for (const leg of legs) {
       if (leg.type === "transit") {
         const choice = firstUsed
-          ? (fetched.get(leg.id) ?? []).find((d) => d.depWhen != null && d.depWhen.getTime() >= cursor)
+          ? (await fetchTransitLegDepartures(leg.from, leg.to, leg.lines, { ...opts, now: cursor }))[0]
           : candidate;
         firstUsed = true;
         if (!choice || !choice.depWhen || !choice.arrWhen) { valid = false; break; }
-        itineraryLegs.push(choice);
+        itineraryLegs.push({ ...choice, id: leg.id });
         cursor = choice.arrWhen.getTime();
       } else {
         const minutes = leg.minutesOverride ?? (opts.settings && estimateTransferMinutes(leg.from, leg.to, leg.type, opts.settings));

@@ -88,6 +88,31 @@ describe("fetchRouteDepartures", () => {
     expect(departures[0].cancelled).toBe(true);
   });
 
+  test("fetches an onward transit leg from the computed transfer cursor", async () => {
+    const requestedUrls: string[] = [];
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      const url = String(input);
+      requestedUrls.push(url);
+      const journeys = requestedUrls.length === 1
+        ? [transitJourney("S2", "2026-05-30T14:00:00", "2026-05-30T15:00:00")]
+        : [transitJourney("RE1", "2026-05-30T15:45:00", "2026-05-30T16:05:00")];
+      return new Response(JSON.stringify({ journeys }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const multistep: RouteConfig = { id: "long-transfer", legs: [
+      { id: "one", type: "transit", from: { id: "a", name: "A" }, to: { id: "b", name: "B" } },
+      { id: "bike", type: "bike", from: { id: "b", name: "B" }, to: { id: "c", name: "C" }, minutesOverride: 40 },
+      { id: "two", type: "transit", from: { id: "c", name: "C" }, to: { id: "d", name: "D" } },
+    ] };
+
+    const departures = await fetchRouteDepartures(multistep, { results: 3, now: parseEfaDate("2026-05-30T13:00:00").getTime() });
+
+    expect(requestedUrls).toHaveLength(2);
+    expect(requestedUrls[1]).toContain("itdDate=20260530");
+    expect(requestedUrls[1]).toContain("itdTime=1540");
+    expect(departures).toHaveLength(1);
+    expect(departures[0].itineraryLegs[2].depWhen?.toISOString()).toBe("2026-05-30T13:45:00.000Z");
+  });
+
   test("places leading and trailing manual legs around transit", async () => {
     mockJourneys([transitJourney("S2", "2026-05-30T14:20:00", "2026-05-30T14:30:00")]);
     const multistep: RouteConfig = { id: "manual-ends", legs: [

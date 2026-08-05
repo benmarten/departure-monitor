@@ -17,6 +17,7 @@ function draft(type: DraftLeg["type"], from: EfaStop | null = null): DraftLeg {
 export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [legs, setLegs] = useState<DraftLeg[]>([]);
+  const [mode, setMode] = useState<"walk" | "bike" | undefined>();
   useEffect(() => {
     if (!visible) return;
     const source = initial?.legs?.length ? initial.legs : initial?.start && initial.end
@@ -25,6 +26,7 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
     setLegs(source.map((leg) => ({ id: leg.id, type: leg.type, from: leg.from, to: leg.to,
       linesText: leg.type === "transit" ? (leg.lines ?? []).join(", ") : "",
       minutesText: leg.type !== "transit" && leg.minutesOverride != null ? String(leg.minutesOverride) : "" })));
+    setMode(initial?.mode);
   }, [visible, initial]);
 
   const patchLeg = (id: string, patch: Partial<DraftLeg>) => setLegs((all) => all.map((leg) => leg.id === id ? { ...leg, ...patch } : leg));
@@ -44,7 +46,7 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
     const normalized = legs.map((leg): RouteLeg => leg.type === "transit"
       ? { id: leg.id, type: "transit", from: leg.from!, to: leg.to!, lines: leg.linesText.split(/[,\s]+/).filter(Boolean) }
       : { id: leg.id, type: leg.type, from: leg.from!, to: leg.to!, minutesOverride: parseMinutesOverride(leg.minutesText) });
-    onSave({ id: initial?.id ?? makeId("rt"), name: initial?.name, legs: normalized, mode: initial?.mode });
+    onSave({ id: initial?.id ?? makeId("rt"), name: initial?.name, legs: normalized, mode });
   }
 
   return <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -57,7 +59,7 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }} keyboardShouldPersistTaps="handled">
         {legs.map((leg, index) => <View key={leg.id} className="rounded-2xl bg-white dark:bg-neutral-900 mb-4 overflow-hidden">
           <View className="flex-row items-center px-4 py-2 bg-neutral-50 dark:bg-neutral-800">
-            <Text className="flex-1 text-neutral-800 dark:text-neutral-100 font-semibold">{index + 1}. {leg.type === "transit" ? "🚆 Transit" : leg.type === "bike" ? "🚲 Bike" : "🚶 Walk"}</Text>
+            <Text className="flex-1 text-neutral-800 dark:text-neutral-100 font-semibold">{index + 1}. {leg.type === "transit" ? `🚆 ${t("transit")}` : leg.type === "bike" ? `🚲 ${t("bike")}` : `🚶 ${t("walk")}`}</Text>
             <Pressable onPress={() => move(index, -1)} className="px-2"><Text className="text-blue-600">↑</Text></Pressable>
             <Pressable onPress={() => move(index, 1)} className="px-2"><Text className="text-blue-600">↓</Text></Pressable>
             <Pressable onPress={() => setLegs((all) => all.filter((x) => x.id !== leg.id))} className="pl-2"><Text className="text-red-500">✕</Text></Pressable>
@@ -69,15 +71,27 @@ export function RouteEditorModal({ visible, initial, onSave, onClose }: Props) {
           <TextInput value={leg.type === "transit" ? leg.linesText : leg.minutesText}
             onChangeText={(value) => patchLeg(leg.id, leg.type === "transit" ? { linesText: value } : { minutesText: value.replace(/[^\d.]/g, "") })}
             keyboardType={leg.type === "transit" ? "default" : "decimal-pad"}
-            placeholder={leg.type === "transit" ? "Lines (optional), e.g. S2, 2" : "Minutes override (optional)"}
+            placeholder={leg.type === "transit" ? t("routeLinesPlaceholder") : t("minutesOverrideOptional")}
             placeholderTextColor="#9CA3AF" className="px-4 py-3 text-neutral-900 dark:text-white" />
         </View>)}
-        {!connected && <Text className="text-red-500 text-xs mb-3">Adjacent legs must connect at the same stop.</Text>}
+        {!connected && <Text className="text-red-500 text-xs mb-3">{t("adjacentLegsConnect")}</Text>}
         <View className="flex-row flex-wrap gap-2">
-          <Pressable onPress={() => add("transit")} className="px-3 py-2 bg-blue-600 rounded-lg"><Text className="text-white font-semibold">+ Transit</Text></Pressable>
-          <Pressable onPress={() => add("bike")} className="px-3 py-2 bg-neutral-200 dark:bg-neutral-800 rounded-lg"><Text className="text-neutral-800 dark:text-white">+ Bike</Text></Pressable>
-          <Pressable onPress={() => add("walk")} className="px-3 py-2 bg-neutral-200 dark:bg-neutral-800 rounded-lg"><Text className="text-neutral-800 dark:text-white">+ Walk</Text></Pressable>
+          <Pressable onPress={() => add("transit")} className="px-3 py-2 bg-blue-600 rounded-lg"><Text className="text-white font-semibold">+ {t("transit")}</Text></Pressable>
+          <Pressable onPress={() => add("bike")} className="px-3 py-2 bg-neutral-200 dark:bg-neutral-800 rounded-lg"><Text className="text-neutral-800 dark:text-white">+ {t("bike")}</Text></Pressable>
+          <Pressable onPress={() => add("walk")} className="px-3 py-2 bg-neutral-200 dark:bg-neutral-800 rounded-lg"><Text className="text-neutral-800 dark:text-white">+ {t("walk")}</Text></Pressable>
         </View>
+        <Text className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-wide mb-2 mt-6 ml-1">{t("reachBy")}</Text>
+        <View className="rounded-2xl bg-white dark:bg-neutral-900 p-3 flex-row gap-2">
+          {([
+            { value: undefined, label: `🌐 ${t("global")}` },
+            { value: "walk" as const, label: `🚶 ${t("walk")}` },
+            { value: "bike" as const, label: `🚲 ${t("bike")}` },
+          ]).map((option) => <Pressable key={option.label} onPress={() => setMode(option.value)}
+            className={`px-3 py-2 rounded-lg ${mode === option.value ? "bg-blue-600" : "bg-neutral-100 dark:bg-neutral-800"}`}>
+            <Text className={mode === option.value ? "text-white font-semibold" : "text-neutral-800 dark:text-white"}>{option.label}</Text>
+          </Pressable>)}
+        </View>
+        <Text className="text-neutral-500 dark:text-neutral-400 text-xs mt-2 ml-1">{t("defaultRouteModeHelp")}</Text>
       </ScrollView>
     </View>
   </Modal>;
