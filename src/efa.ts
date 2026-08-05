@@ -277,7 +277,7 @@ export async function fetchTransitLegDepartures(
   const data = (await res.json()) as { journeys?: EfaJourney[], systemMessages?: { type: string; text: string }[] };
 
   const wanted = (lines ?? []).map(normalizeLine);
-  const out: RouteDepartureLeg[] = [];
+  const out: { departure: RouteDepartureLeg; direct: boolean }[] = [];
 
   for (const journey of data.journeys ?? []) {
     const transit = (journey.legs ?? []).filter(isTransitLeg);
@@ -308,7 +308,7 @@ export async function fetchTransitLegDepartures(
     // Remove "Gleis " prefix if present (e.g., "Gleis 3" → "3")
     const platform = rawPlatform ? rawPlatform.replace(/^Gleis\s+/i, '').trim() : null;
 
-    out.push({
+    out.push({ departure: {
       id: `${from.id}>${to.id}`,
       type: "transit",
       line,
@@ -323,11 +323,12 @@ export async function fetchTransitLegDepartures(
       travelMinutes:
         arrWhen != null ? minutesBetween(depWhen.getTime(), arrWhen.getTime()) : null,
       cancelled: isCancelled(journey, transit),
-    });
+    }, direct: transit.length === 1 });
   }
 
-  out.sort((a, b) => (a.depWhen?.getTime() ?? 0) - (b.depWhen?.getTime() ?? 0));
-  return out;
+  out.sort((a, b) => (a.departure.depWhen?.getTime() ?? 0) - (b.departure.depWhen?.getTime() ?? 0));
+  const direct = out.filter((item) => item.direct);
+  return (direct.length > 0 ? direct : out).map((item) => item.departure);
 }
 
 export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOptions): Promise<RouteDeparture[]> {
@@ -353,7 +354,9 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
   for (const candidate of candidates) {
     if (!candidate.depWhen || candidate.depWhen.getTime() < earliestFirst) continue;
     const itineraryLegs: RouteDepartureLeg[] = [];
-    let cursor = candidate.depWhen.getTime();
+    // Leading manual legs must finish when the first train departs. Starting
+    // the cursor at that departure would make them overlap the train itself.
+    let cursor = candidate.depWhen.getTime() - (earliestFirst - opts.now);
     let valid = true;
     let firstUsed = false;
     for (const leg of legs) {
@@ -378,6 +381,7 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
     const transit = itineraryLegs.filter((leg) => leg.type === "transit");
     const first = transit[0];
     const last = transit[transit.length - 1];
+    const finalLeg = itineraryLegs[itineraryLegs.length - 1];
     if (!first.depWhen) continue;
     out.push({
       key: `${route.id}:${first.line ?? "?"}:${first.depWhen.toISOString()}`,
@@ -393,10 +397,10 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
       depWhen: first.depWhen,
       depPlanned: first.delayMinutes != null ? new Date(first.depWhen.getTime() - first.delayMinutes * 60_000) : null,
       platform: first.platform ?? null,
-      arrWhen: last.arrWhen,
+      arrWhen: finalLeg.arrWhen,
       delayMinutes: first.delayMinutes ?? null,
       minutesUntil: minutesBetween(opts.now, first.depWhen.getTime()),
-      travelMinutes: last.arrWhen ? minutesBetween(first.depWhen.getTime(), last.arrWhen.getTime()) : null,
+      travelMinutes: finalLeg.arrWhen ? minutesBetween(first.depWhen.getTime(), finalLeg.arrWhen.getTime()) : null,
       transfers: Math.max(0, transit.length - 1),
       cancelled: transit.some((leg) => leg.cancelled),
       itineraryLegs,

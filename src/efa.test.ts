@@ -88,6 +88,37 @@ describe("fetchRouteDepartures", () => {
     expect(departures[0].cancelled).toBe(true);
   });
 
+  test("places leading and trailing manual legs around transit", async () => {
+    mockJourneys([transitJourney("S2", "2026-05-30T14:20:00", "2026-05-30T14:30:00")]);
+    const multistep: RouteConfig = { id: "manual-ends", legs: [
+      { id: "walk", type: "walk", from: { id: "a", name: "A" }, to: { id: "b", name: "B" }, minutesOverride: 5 },
+      { id: "train", type: "transit", from: { id: "b", name: "B" }, to: { id: "c", name: "C" } },
+      { id: "bike", type: "bike", from: { id: "c", name: "C" }, to: { id: "d", name: "D" }, minutesOverride: 10 },
+    ] };
+
+    const departures = await fetchRouteDepartures(multistep, { results: 3, now: parseEfaDate("2026-05-30T14:00:00").getTime() });
+
+    expect(departures).toHaveLength(1);
+    expect(departures[0].itineraryLegs[0].depWhen?.toISOString()).toBe("2026-05-30T12:15:00.000Z");
+    expect(departures[0].itineraryLegs[0].arrWhen?.toISOString()).toBe("2026-05-30T12:20:00.000Z");
+    expect(departures[0].arrWhen?.toISOString()).toBe("2026-05-30T12:40:00.000Z");
+    expect(departures[0].travelMinutes).toBe(20);
+  });
+
+  test("prefers direct journeys within a configured transit leg", async () => {
+    const indirect = transitJourney("S2", "2026-05-30T14:00:00", "2026-05-30T14:10:00");
+    indirect.legs.push(transitJourney("RE1", "2026-05-30T14:12:00", "2026-05-30T14:30:00").legs[0]);
+    mockJourneys([
+      indirect,
+      transitJourney("S2", "2026-05-30T14:05:00", "2026-05-30T14:35:00"),
+    ]);
+
+    const departures = await fetchRouteDepartures(route, { results: 3, now: parseEfaDate("2026-05-30T13:00:00").getTime() });
+
+    expect(departures).toHaveLength(1);
+    expect(departures[0].depWhen.toISOString()).toBe("2026-05-30T12:05:00.000Z");
+  });
+
   test("uses estimated times and calculates the departure delay", async () => {
     mockJourneys([
       {
