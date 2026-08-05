@@ -393,8 +393,9 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
     const transit = itineraryLegs.filter((leg) => leg.type === "transit");
     const first = transit[0];
     const last = transit[transit.length - 1];
+    const firstLeg = itineraryLegs[0];
     const finalLeg = itineraryLegs[itineraryLegs.length - 1];
-    if (!first.depWhen) continue;
+    if (!first.depWhen || !firstLeg.depWhen) continue;
     out.push({
       key: `${route.id}:${first.line ?? "?"}:${first.depWhen.toISOString()}`,
       routeId: route.id,
@@ -406,13 +407,13 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
       mode: route.mode,
       destinationLabel: legs[legs.length - 1].to.name,
       headsign: last.headsign ?? legs[legs.length - 1].to.name,
-      depWhen: first.depWhen,
-      depPlanned: first.delayMinutes != null ? new Date(first.depWhen.getTime() - first.delayMinutes * 60_000) : null,
+      depWhen: firstLeg.depWhen,
+      depPlanned: first.delayMinutes != null ? new Date(firstLeg.depWhen.getTime() - first.delayMinutes * 60_000) : null,
       platform: first.platform ?? null,
       arrWhen: finalLeg.arrWhen,
       delayMinutes: first.delayMinutes ?? null,
-      minutesUntil: minutesBetween(opts.now, first.depWhen.getTime()),
-      travelMinutes: finalLeg.arrWhen ? minutesBetween(first.depWhen.getTime(), finalLeg.arrWhen.getTime()) : null,
+      minutesUntil: minutesBetween(opts.now, firstLeg.depWhen.getTime()),
+      travelMinutes: finalLeg.arrWhen ? minutesBetween(firstLeg.depWhen.getTime(), finalLeg.arrWhen.getTime()) : null,
       transfers: Math.max(0, transit.length - 1),
       cancelled: transit.some((leg) => leg.cancelled),
       itineraryLegs,

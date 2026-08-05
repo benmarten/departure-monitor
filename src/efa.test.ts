@@ -126,8 +126,10 @@ describe("fetchRouteDepartures", () => {
     expect(departures).toHaveLength(1);
     expect(departures[0].itineraryLegs[0].depWhen?.toISOString()).toBe("2026-05-30T12:15:00.000Z");
     expect(departures[0].itineraryLegs[0].arrWhen?.toISOString()).toBe("2026-05-30T12:20:00.000Z");
+    expect(departures[0].depWhen.toISOString()).toBe("2026-05-30T12:15:00.000Z");
+    expect(departures[0].minutesUntil).toBe(15);
     expect(departures[0].arrWhen?.toISOString()).toBe("2026-05-30T12:40:00.000Z");
-    expect(departures[0].travelMinutes).toBe(20);
+    expect(departures[0].travelMinutes).toBe(25);
   });
 
   test("prefers direct journeys within a configured transit leg", async () => {
