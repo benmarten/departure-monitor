@@ -67,18 +67,6 @@ export function RoutesScreen({
     );
   }
 
-  /** Cycle a single route's reach mode: default(global) → walk → bike → default. */
-  function cycleRouteMode(groupId: string, route: RouteConfig) {
-    const next = route.mode === undefined ? "walk" : route.mode === "walk" ? "bike" : undefined;
-    setPresets(
-      presets.map((g) =>
-        g.id === groupId
-          ? { ...g, routes: g.routes.map((r) => (r.id === route.id ? { ...r, mode: next } : r)) }
-          : g
-      )
-    );
-  }
-
   /**
    * Create a new group that is the reverse copy of this one: every A→B route
    * becomes B→A. The new group auto-anchors on the reversed start stops (the
@@ -89,9 +77,8 @@ export function RoutesScreen({
     if (!g || g.routes.length === 0) return;
     const reversed: RouteConfig[] = g.routes.map((r) => ({
       id: makeId("rt"),
-      start: r.end,
-      end: r.start,
-      lines: r.lines,
+      name: r.name,
+      legs: [...r.legs].reverse().map((leg) => ({ ...leg, id: makeId("leg"), from: leg.to, to: leg.from })),
       mode: r.mode,
     }));
     const newGroup: LocationGroup = {
@@ -135,7 +122,7 @@ export function RoutesScreen({
 
             {/* Anchor is auto-derived from the routes' start stops. */}
             {(() => {
-              const n = g.routes.filter((r) => r.start.lat != null && r.start.lng != null).length;
+              const n = g.routes.filter((r) => r.legs[0]?.from.lat != null && r.legs[0]?.from.lng != null).length;
               const c = groupCenter(g);
               return (
                 <View className="flex-row items-center justify-between mb-3">
@@ -163,20 +150,9 @@ export function RoutesScreen({
               <View key={r.id} className="flex-row items-center gap-2 py-2 border-t border-neutral-100 dark:border-neutral-800">
                 <Pressable className="flex-1" onPress={() => setEditing({ groupId: g.id, route: r })}>
                   <Text className="text-neutral-900 dark:text-neutral-50 text-sm font-semibold" numberOfLines={3}>
-                    {routeName(r.start.name)} → {routeName(r.end.name)}
+                    {r.legs.map((leg, index) => `${index ? "→ " : ""}${index && leg.type !== "transit" ? `${leg.type} ` : ""}${routeName(index ? leg.to.name : leg.from.name)}${index === 0 ? ` → ${routeName(leg.to.name)}` : ""}`).join(" ")}
                   </Text>
-                  {r.lines && r.lines.length > 0 ? (
-                    <Text className="text-neutral-500 dark:text-neutral-400 text-xs">{r.lines.join(", ")}</Text>
-                  ) : null}
-                </Pressable>
-                <Pressable
-                  onPress={() => cycleRouteMode(g.id, r)}
-                  hitSlop={6}
-                  className="px-2.5 py-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 min-w-[44px] items-center"
-                >
-                  <Text className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">
-                    {r.mode === "walk" ? "🚶" : r.mode === "bike" ? "🚲" : "🌐"}
-                  </Text>
+                  <Text className="text-neutral-500 dark:text-neutral-400 text-xs">{r.legs.length} leg{r.legs.length === 1 ? "" : "s"}</Text>
                 </Pressable>
                 <Pressable onPress={() => deleteRoute(g.id, r.id)} hitSlop={8} className="px-2">
                   <Text className="text-red-500 text-lg">✕</Text>

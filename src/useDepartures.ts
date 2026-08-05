@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { demoRouteDepartures, fetchRouteDepartures } from "./efa";
-import { LocationGroup, RouteConfig, RouteDeparture } from "./types";
+import { LocationGroup, ReachSettings, RouteConfig, RouteDeparture } from "./types";
 
 /** How many departures to show per route initially. */
 export const SHOW_PER_ROUTE = 3;
@@ -64,6 +64,11 @@ async function loadCache(groupId: string): Promise<CachedRouteGroups | null> {
         depWhen: new Date(d.depWhen),
         depPlanned: d.depPlanned ? new Date(d.depPlanned) : null,
         arrWhen: d.arrWhen ? new Date(d.arrWhen) : null,
+        itineraryLegs: (d.itineraryLegs ?? []).map((leg: any) => ({
+          ...leg,
+          depWhen: leg.depWhen ? new Date(leg.depWhen) : null,
+          arrWhen: leg.arrWhen ? new Date(leg.arrWhen) : null,
+        })),
       })),
     }));
     return { savedAt: parsed.savedAt, groups };
@@ -86,7 +91,7 @@ async function saveCache(groupId: string, groups: RouteGroup[], savedAt = Date.n
  * group changes. Serves cached data immediately on mount; falls back to cache
  * when the network is unavailable.
  */
-export function useDepartures(group: LocationGroup | null): DeparturesState {
+export function useDepartures(group: LocationGroup | null, settings: ReachSettings): DeparturesState {
   const [byRoute, setByRoute] = useState<RouteGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -105,6 +110,8 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
   // object identity (which changes on every edit, e.g. toggling a route's mode).
   const groupRef = useRef(group);
   groupRef.current = group;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
 
   const load = useCallback(async (isFirst: boolean, resultsPerRoute?: number, silent = false) => {
     const g = groupRef.current;
@@ -134,7 +141,7 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
     const now = Date.now();
     const results = await Promise.allSettled(
       g.routes.map((route) =>
-        fetchRouteDepartures(route, { results: numResults, now, signal: controller.signal })
+        fetchRouteDepartures(route, { results: numResults, now, signal: controller.signal, settings: settingsRef.current })
       )
     );
     if (controller.signal.aborted) return;
@@ -188,7 +195,9 @@ export function useDepartures(group: LocationGroup | null): DeparturesState {
   const fetchKey = group
     ? group.id +
       "|" +
-      group.routes.map((r) => `${r.id}:${r.start.id}>${r.end.id}:${(r.lines ?? []).join(",")}`).join("|")
+      group.routes.map((r) => `${r.id}:${r.legs.map((leg) =>
+        `${leg.id}:${leg.type}:${leg.from.id}>${leg.to.id}:${leg.type === "transit" ? (leg.lines ?? []).join(",") : leg.minutesOverride ?? ""}`
+      ).join(";")}`).join("|") + `|${settings.walkKmh}:${settings.bikeKmh}`
     : "";
 
   useEffect(() => {

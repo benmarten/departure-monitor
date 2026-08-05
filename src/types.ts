@@ -21,10 +21,17 @@ export interface EfaStop {
 }
 
 /** One configured journey: from `start`, heading to `end`. */
+export type RouteLeg =
+  | { id: string; type: "transit"; from: EfaStop; to: EfaStop; lines?: string[] }
+  | { id: string; type: "walk" | "bike"; from: EfaStop; to: EfaStop; minutesOverride?: number };
+
 export interface RouteConfig {
   id: string;
-  start: EfaStop;
-  end: EfaStop;
+  name?: string;
+  legs: RouteLeg[];
+  /** Legacy fields are accepted only while reading/migrating v1 data. */
+  start?: EfaStop;
+  end?: EfaStop;
   /**
    * Optional line filter (matched against the line number/label, e.g. "S2",
    * "2"). Empty/undefined shows every line that runs start → end.
@@ -75,6 +82,22 @@ export interface LocationGroup {
 }
 
 /** A normalized, display-ready departure for one route. */
+export interface RouteDepartureLeg {
+  id: string;
+  type: "transit" | "walk" | "bike";
+  fromLabel: string;
+  toLabel: string;
+  line?: string;
+  product?: string;
+  headsign?: string;
+  depWhen: Date | null;
+  arrWhen: Date | null;
+  travelMinutes: number | null;
+  platform?: string | null;
+  delayMinutes?: number | null;
+  cancelled?: boolean;
+}
+
 export interface RouteDeparture {
   key: string;
   routeId: string;
@@ -110,4 +133,5 @@ export interface RouteDeparture {
   /** Number of transfers (0 = direct). */
   transfers: number;
   cancelled: boolean;
+  itineraryLegs: RouteDepartureLeg[];
 }

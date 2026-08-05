@@ -55,8 +55,10 @@ export function usePresets(): PresetsState {
     const ids = new Set<string>();
     for (const g of presets) {
       for (const r of g.routes) {
-        if (r.start.lat == null || r.start.lng == null) ids.add(r.start.id);
-        if (r.end.lat == null || r.end.lng == null) ids.add(r.end.id);
+        for (const leg of r.legs) {
+          if (leg.from.lat == null || leg.from.lng == null) ids.add(leg.from.id);
+          if (leg.to.lat == null || leg.to.lng == null) ids.add(leg.to.id);
+        }
       }
     }
     if (ids.size === 0) return;
@@ -70,13 +72,13 @@ export function usePresets(): PresetsState {
       }
       if (cancelled || coords.size === 0) return;
       setPresetsState((prev) => {
-        const patch = (s: LocationGroup["routes"][number]["start"]) => {
+        const patch = (s: LocationGroup["routes"][number]["legs"][number]["from"]) => {
           const c = (s.lat == null || s.lng == null) && coords.get(s.id);
           return c ? { ...s, lat: c.lat, lng: c.lng } : s;
         };
         const next = prev.map((g) => ({
           ...g,
-          routes: g.routes.map((r) => ({ ...r, start: patch(r.start), end: patch(r.end) })),
+          routes: g.routes.map((r) => ({ ...r, legs: r.legs.map((leg) => ({ ...leg, from: patch(leg.from), to: patch(leg.to) })) })),
         }));
         void savePresets(next);
         return next;

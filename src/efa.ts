@@ -1,4 +1,5 @@
-import { EfaStop, RouteConfig, RouteDeparture } from "./types";
+import { estimateTransferMinutes } from "./reach";
+import { EfaStop, ReachSettings, RouteConfig, RouteDeparture, RouteDepartureLeg, RouteLeg } from "./types";
 
 /**
  * Data source: EFA-BW (the Elektronische Fahrplanauskunft instance that powers
@@ -185,6 +186,18 @@ const BERLIN_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
+function efaRequestTime(instantMs: number): { date: string; time: string } {
+  const parts = Object.fromEntries(
+    BERLIN_TIME_FORMAT.formatToParts(new Date(instantMs))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+  return {
+    date: `${parts.year}${parts.month}${parts.day}`,
+    time: `${parts.hour}${parts.minute}`,
+  };
+}
+
 function berlinOffsetMs(instantMs: number): number {
   const parts = Object.fromEntries(
     BERLIN_TIME_FORMAT.formatToParts(new Date(instantMs))
@@ -243,23 +256,41 @@ export function parseEfaDate(raw: string): Date {
  * to the configured destination. Applies the optional line filter and returns
  * results sorted by departure time.
  */
-export async function fetchRouteDepartures(
-  route: RouteConfig,
-  opts: { results: number; now: number; signal?: AbortSignal }
-): Promise<RouteDeparture[]> {
+type FetchOptions = {
+  results: number;
+  now: number;
+  signal?: AbortSignal;
+  settings?: Pick<ReachSettings, "walkKmh" | "bikeKmh">;
+};
+
+function routeLegs(route: RouteConfig): RouteLeg[] {
+  if (route.legs?.length) return route.legs;
+  if (route.start && route.end) {
+    return [{ id: `${route.id}:legacy`, type: "transit", from: route.start, to: route.end, lines: route.lines }];
+  }
+  return [];
+}
+
+export async function fetchTransitLegDepartures(
+  from: EfaStop,
+  to: EfaStop,
+  lines: string[] | undefined,
+  opts: FetchOptions
+): Promise<RouteDepartureLeg[]> {
+  const requestTime = efaRequestTime(opts.now);
   const url =
     `${EFA_BASE}/XML_TRIP_REQUEST2?language=de&outputFormat=rapidJSON` +
-    `&type_origin=stop&name_origin=${encodeURIComponent(route.start.id)}` +
-    `&type_destination=stop&name_destination=${encodeURIComponent(route.end.id)}` +
+    `&type_origin=stop&name_origin=${encodeURIComponent(from.id)}` +
+    `&type_destination=stop&name_destination=${encodeURIComponent(to.id)}` +
     `&useRealtime=1&calcNumberOfTrips=${Math.max(opts.results + 4, 6)}` +
-    `&itdDateTimeDepArr=dep`;
+    `&itdDateTimeDepArr=dep&itdDate=${requestTime.date}&itdTime=${requestTime.time}`;
 
   const res = await fetchJson(url, opts.signal);
-  if (!res.ok) throw new Error(`Route ${route.start.name} → ${route.end.name}: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Route ${from.name} → ${to.name}: HTTP ${res.status}`);
   const data = (await res.json()) as { journeys?: EfaJourney[], systemMessages?: { type: string; text: string }[] };
 
-  const wanted = (route.lines ?? []).map(normalizeLine);
-  const out: RouteDeparture[] = [];
+  const wanted = (lines ?? []).map(normalizeLine);
+  const out: { departure: RouteDepartureLeg; direct: boolean }[] = [];
 
   for (const journey of data.journeys ?? []) {
     const transit = (journey.legs ?? []).filter(isTransitLeg);
@@ -290,41 +321,114 @@ export async function fetchRouteDepartures(
     // Remove "Gleis " prefix if present (e.g., "Gleis 3" → "3")
     const platform = rawPlatform ? rawPlatform.replace(/^Gleis\s+/i, '').trim() : null;
 
-    out.push({
-      key: `${route.id}:${line}:${depEstIso}`,
-      routeId: route.id,
+    out.push({ departure: {
+      id: `${from.id}>${to.id}`,
+      type: "transit",
       line,
       product: first.transportation?.product?.name ?? "",
-      originLabel: route.start.name,
-      originLat: route.start.lat,
-      originLng: route.start.lng,
-      mode: route.mode,
-      destinationLabel: route.end.name,
+      fromLabel: from.name,
+      toLabel: to.name,
       headsign: first.transportation?.destination?.name ?? "",
       depWhen,
-      depPlanned,
       platform,
       arrWhen,
       delayMinutes,
-      minutesUntil: minutesBetween(opts.now, depWhen.getTime()),
       travelMinutes:
         arrWhen != null ? minutesBetween(depWhen.getTime(), arrWhen.getTime()) : null,
-      transfers: transit.length - 1,
       cancelled: isCancelled(journey, transit),
-    });
+    }, direct: transit.length === 1 });
   }
 
-  out.sort((a, b) => a.depWhen.getTime() - b.depWhen.getTime());
-  // Prefer direct trains (a departure board shouldn't show journeys that ride
-  // the opposite direction and double back). Fall back to journeys with
-  // changes only if the route has no direct option at all.
-  const direct = out.filter((d) => d.transfers === 0);
-  return (direct.length > 0 ? direct : out).slice(0, opts.results);
+  out.sort((a, b) => (a.departure.depWhen?.getTime() ?? 0) - (b.departure.depWhen?.getTime() ?? 0));
+  const direct = out.filter((item) => item.direct);
+  return (direct.length > 0 ? direct : out).map((item) => item.departure);
+}
+
+export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOptions): Promise<RouteDeparture[]> {
+  const legs = routeLegs(route);
+  const transitLegs = legs.filter((leg): leg is Extract<RouteLeg, { type: "transit" }> => leg.type === "transit");
+  if (transitLegs.length === 0) return [];
+
+  const firstTransitIndex = legs.findIndex((leg) => leg.type === "transit");
+  let earliestFirst = opts.now;
+  for (const leg of legs.slice(0, firstTransitIndex)) {
+    if (leg.type === "transit") continue;
+    const minutes = leg.minutesOverride ?? (opts.settings && estimateTransferMinutes(leg.from, leg.to, leg.type, opts.settings));
+    if (minutes == null) return [];
+    earliestFirst += minutes * 60_000;
+  }
+  const firstTransit = transitLegs[0];
+  const candidates = (await fetchTransitLegDepartures(firstTransit.from, firstTransit.to, firstTransit.lines, {
+    ...opts,
+    now: earliestFirst,
+  })).map((departure) => ({ ...departure, id: firstTransit.id }));
+  const out: RouteDeparture[] = [];
+  for (const candidate of candidates) {
+    if (!candidate.depWhen || candidate.depWhen.getTime() < earliestFirst) continue;
+    const itineraryLegs: RouteDepartureLeg[] = [];
+    // Leading manual legs must finish when the first train departs. Starting
+    // the cursor at that departure would make them overlap the train itself.
+    let cursor = candidate.depWhen.getTime() - (earliestFirst - opts.now);
+    let valid = true;
+    let firstUsed = false;
+    for (const leg of legs) {
+      if (leg.type === "transit") {
+        const choice = firstUsed
+          ? (await fetchTransitLegDepartures(leg.from, leg.to, leg.lines, { ...opts, now: cursor }))[0]
+          : candidate;
+        firstUsed = true;
+        if (!choice || !choice.depWhen || !choice.arrWhen) { valid = false; break; }
+        itineraryLegs.push({ ...choice, id: leg.id });
+        cursor = choice.arrWhen.getTime();
+      } else {
+        const minutes = leg.minutesOverride ?? (opts.settings && estimateTransferMinutes(leg.from, leg.to, leg.type, opts.settings));
+        if (minutes == null) { valid = false; break; }
+        const depWhen = new Date(cursor);
+        cursor += minutes * 60_000;
+        itineraryLegs.push({ id: leg.id, type: leg.type, fromLabel: leg.from.name, toLabel: leg.to.name,
+          depWhen, arrWhen: new Date(cursor), travelMinutes: minutes });
+      }
+    }
+    if (!valid) continue;
+    const transit = itineraryLegs.filter((leg) => leg.type === "transit");
+    const first = transit[0];
+    const last = transit[transit.length - 1];
+    const firstLeg = itineraryLegs[0];
+    const finalLeg = itineraryLegs[itineraryLegs.length - 1];
+    if (!first.depWhen || !firstLeg.depWhen) continue;
+    out.push({
+      key: `${route.id}:${first.line ?? "?"}:${first.depWhen.toISOString()}`,
+      routeId: route.id,
+      line: first.line ?? "?",
+      product: first.product ?? "",
+      originLabel: legs[0].from.name,
+      originLat: legs[0].from.lat,
+      originLng: legs[0].from.lng,
+      mode: route.mode,
+      destinationLabel: legs[legs.length - 1].to.name,
+      headsign: last.headsign ?? legs[legs.length - 1].to.name,
+      depWhen: firstLeg.depWhen,
+      depPlanned: first.delayMinutes != null ? new Date(firstLeg.depWhen.getTime() - first.delayMinutes * 60_000) : null,
+      platform: first.platform ?? null,
+      arrWhen: finalLeg.arrWhen,
+      delayMinutes: first.delayMinutes ?? null,
+      minutesUntil: minutesBetween(opts.now, firstLeg.depWhen.getTime()),
+      travelMinutes: finalLeg.arrWhen ? minutesBetween(firstLeg.depWhen.getTime(), finalLeg.arrWhen.getTime()) : null,
+      transfers: Math.max(0, transit.length - 1),
+      cancelled: transit.some((leg) => leg.cancelled),
+      itineraryLegs,
+    });
+  }
+  return out.sort((a, b) => a.depWhen.getTime() - b.depWhen.getTime()).slice(0, opts.results);
 }
 
 /** Illustrative data so the board stays useful if EFA is unreachable. */
 export function demoRouteDepartures(route: RouteConfig, now: number): RouteDeparture[] {
-  const line = route.lines?.[0] ?? "S2";
+  const legs = routeLegs(route);
+  const first = legs.find((leg) => leg.type === "transit");
+  if (!first || first.type !== "transit") return [];
+  const last = legs[legs.length - 1];
+  const line = first.lines?.[0] ?? "S2";
   return [0, 1, 2].map((n) => {
     const offset = 3 + n * 9;
     const depWhen = new Date(now + offset * 60_000);
@@ -335,12 +439,12 @@ export function demoRouteDepartures(route: RouteConfig, now: number): RouteDepar
       routeId: route.id,
       line,
       product: line.startsWith("S") ? "S-Bahn" : "Straßenbahn",
-      originLabel: route.start.name,
-      originLat: route.start.lat,
-      originLng: route.start.lng,
+      originLabel: legs[0].from.name,
+      originLat: legs[0].from.lat,
+      originLng: legs[0].from.lng,
       mode: route.mode,
-      destinationLabel: route.end.name,
-      headsign: route.end.name,
+      destinationLabel: last.to.name,
+      headsign: last.to.name,
       depWhen,
       depPlanned: new Date(depWhen.getTime() - delay * 60_000),
       platform: n === 0 ? "2" : null, // Demo: first departure has platform
@@ -350,6 +454,9 @@ export function demoRouteDepartures(route: RouteConfig, now: number): RouteDepar
       travelMinutes: 14,
       transfers: 0,
       cancelled: false,
+      itineraryLegs: [{ id: first.id, type: "transit", fromLabel: first.from.name, toLabel: first.to.name,
+        line, product: line.startsWith("S") ? "S-Bahn" : "Straßenbahn", headsign: first.to.name,
+        depWhen, arrWhen, travelMinutes: 14, platform: n === 0 ? "2" : null, delayMinutes: delay, cancelled: false }],
     };
   });
 }

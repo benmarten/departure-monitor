@@ -1,8 +1,20 @@
 import { distanceMeters } from "./location";
-import { ReachSettings, RouteDeparture } from "./types";
+import { EfaStop, ReachSettings, RouteDeparture } from "./types";
 
 /** Straight-line routes underestimate real paths; scale up to approximate. */
 const DETOUR_FACTOR = 1.3;
+
+export function estimateTransferMinutes(
+  from: EfaStop,
+  to: EfaStop,
+  mode: "walk" | "bike",
+  settings: Pick<ReachSettings, "walkKmh" | "bikeKmh">
+): number | null {
+  if (from.lat == null || from.lng == null || to.lat == null || to.lng == null) return null;
+  const kmh = mode === "bike" ? settings.bikeKmh : settings.walkKmh;
+  if (kmh <= 0) return null;
+  return distanceMeters(from.lat, from.lng, to.lat, to.lng) * DETOUR_FACTOR / 1000 / kmh * 60;
+}
 
 export type ReachLevel = "green" | "yellow" | "red";
 
