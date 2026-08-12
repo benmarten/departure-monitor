@@ -139,6 +139,32 @@ describe("fetchRouteDepartures", () => {
     expect(departures[0].itineraryLegs[2].depWhen?.toISOString()).toBe("2026-05-30T12:40:00.000Z");
   });
 
+  test("deduplicating same-final-train options prefers a non-cancelled itinerary", async () => {
+    const responses = [
+      [
+        transitJourney("S2", "2026-05-30T14:00:00", "2026-05-30T14:10:00"),
+        transitJourney("S2", "2026-05-30T14:15:00", "2026-05-30T14:25:00", true),
+      ],
+      [transitJourney("RE1", "2026-05-30T14:40:00", "2026-05-30T15:00:00")],
+      [transitJourney("RE1", "2026-05-30T14:40:00", "2026-05-30T15:00:00")],
+    ];
+    globalThis.fetch = (async () => new Response(JSON.stringify({ journeys: responses.shift() }), { status: 200 })) as unknown as typeof fetch;
+    const multistep: RouteConfig = { id: "duplicate-final-cancelled", legs: [
+      { id: "one", type: "transit", from: { id: "a", name: "A" }, to: { id: "b", name: "B" }, lines: ["S2"] },
+      { id: "bike", type: "bike", from: { id: "b", name: "B" }, to: { id: "c", name: "C" }, minutesOverride: 10 },
+      { id: "two", type: "transit", from: { id: "c", name: "C" }, to: { id: "d", name: "D" }, lines: ["RE1"] },
+    ] };
+
+    const departures = await fetchRouteDepartures(multistep, {
+      results: 3,
+      now: parseEfaDate("2026-05-30T13:00:00").getTime(),
+    });
+
+    expect(departures).toHaveLength(1);
+    expect(departures[0].cancelled).toBe(false);
+    expect(departures[0].depWhen.toISOString()).toBe("2026-05-30T12:00:00.000Z");
+  });
+
   test("places leading and trailing manual legs around transit", async () => {
     mockJourneys([transitJourney("S2", "2026-05-30T14:20:00", "2026-05-30T14:30:00")]);
     const multistep: RouteConfig = { id: "manual-ends", legs: [

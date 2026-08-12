@@ -306,7 +306,13 @@ function dedupeByFinalTransit(departures: RouteDeparture[]): RouteDeparture[] {
     const existingTime = existing.depWhen.getTime();
     const depTravel = dep.travelMinutes ?? Infinity;
     const existingTravel = existing.travelMinutes ?? Infinity;
-    if (depTime > existingTime || (depTime === existingTime && depTravel < existingTravel)) {
+    const isBetter =
+      (existing.cancelled && !dep.cancelled) ||
+      (existing.cancelled === dep.cancelled && (
+        depTime > existingTime ||
+        (depTime === existingTime && depTravel < existingTravel)
+      ));
+    if (isBetter) {
       byFinalTransit.set(key, dep);
     }
   }
