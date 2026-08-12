@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { computeReach, estimateTransferMinutes } from "./reach";
+import { computeReach, estimateTransferMinutes, suggestedWaitMinutes } from "./reach";
 import { RouteDeparture, ReachSettings } from "./types";
 
 function dep(overrides: Partial<RouteDeparture> = {}): RouteDeparture {
@@ -138,5 +138,19 @@ describe("computeReach", () => {
     const settings = { ...baseSettings, walkKmh: 0 };
     const r = computeReach(d, pos, settings, Date.now());
     expect(r).toBeNull();
+  });
+});
+
+describe("suggestedWaitMinutes", () => {
+  test("caps wait to the configured leave buffer when there is extra slack", () => {
+    expect(suggestedWaitMinutes(74, 5)).toBe(5);
+  });
+
+  test("uses remaining slack when leaving immediately is tighter than the buffer", () => {
+    expect(suggestedWaitMinutes(3, 5)).toBe(3);
+  });
+
+  test("does not return negative wait time", () => {
+    expect(suggestedWaitMinutes(-2, 5)).toBe(0);
   });
 });
