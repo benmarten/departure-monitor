@@ -1,0 +1,54 @@
+# Managed by webapp-generator quality. Safe to regenerate.
+name: Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+    branches:
+      - agent/quality-standard-dokku-1786523615030
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dokku-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Dokku
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      DOKKU_HOST: ${{ vars.DOKKU_HOST || secrets.DOKKU_HOST }}
+      DOKKU_APP: ${{ vars.DOKKU_APP || secrets.DOKKU_APP }}
+      DOKKU_USER: ${{ vars.DOKKU_USER || secrets.DOKKU_USER || 'dokku' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate deploy configuration
+        run: |
+          test -n "$DOKKU_HOST"
+          test -n "$DOKKU_APP"
+          test -n "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}"
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DOKKU_SSH_PRIVATE_KEY }}" > ~/.ssh/dokku
+          chmod 600 ~/.ssh/dokku
+          ssh-keyscan -H "$DOKKU_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy to Dokku
+        run: |
+          git remote add dokku "$DOKKU_USER@$DOKKU_HOST:$DOKKU_APP"
+          # GitHub main is the source of truth; Dokku app git history is deployment state.
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/dokku -o IdentitiesOnly=yes" git push --force dokku HEAD:master
