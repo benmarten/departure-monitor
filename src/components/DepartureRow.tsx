@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { ReachSettings, RouteDeparture } from "../types";
-import { computeReach } from "../reach";
+import { computeReach, suggestedWaitMinutes } from "../reach";
 import { t } from "../i18n";
 import { formatClock, lineColor, minutesLabel, routeName, stopShort } from "../theme";
 
@@ -40,10 +40,13 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
   const primaryLabel = settings.departureDisplay === "leaveBy" && reach && leaveInMin != null
     ? `${REACH_ICON[reach.mode]} ${minutesLabel(leaveInMin)}`
     : minutesLabel(min);
+  const suggestedWait = reach
+    ? suggestedWaitMinutes(reach.slackMin, settings.optimalWaitMin)
+    : null;
 
-  // Calculate total travel time: walk/bike + wait + train time
-  const totalTime = reach && dep.travelMinutes != null
-    ? reach.travelMin + reach.slackMin + dep.travelMinutes
+  // Total from the suggested leave time, not from the current clock time.
+  const totalTime = reach && suggestedWait != null && dep.travelMinutes != null
+    ? reach.travelMin + suggestedWait + dep.travelMinutes
     : null;
 
   return (
@@ -151,11 +154,11 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
                   <Text className="text-neutral-500 dark:text-neutral-400 text-xs">
                     <Text className="font-semibold">{t("travelTime")}:</Text> {REACH_ICON[reach.mode]} {reach.travelMin} min
                   </Text>
-                  {reach.slackMin > 0 && (
+                  {suggestedWait != null && suggestedWait > 0 && (
                     <Text className="text-neutral-500 dark:text-neutral-400 text-xs">
                       <Text className="font-semibold">{t("waitTime")}:</Text>{" "}
-                      <Text className={waitColor(reach.slackMin, settings)}>
-                        {Math.round(reach.slackMin)} min
+                      <Text className={waitColor(suggestedWait, settings)}>
+                        {Math.round(suggestedWait)} min
                       </Text>
                     </Text>
                   )}
@@ -192,9 +195,9 @@ export function DepartureRow({ dep, now, pos, settings, routeMode }: Props) {
                       <Text className="text-[11px] text-neutral-500 dark:text-neutral-400">
                         {REACH_ICON[reach.mode]} {reach.travelMin}'
                       </Text>
-                      {reach.slackMin > 0 ? (
-                        <Text className={`text-[11px] ${waitColor(reach.slackMin, settings)}`}>
-                          ⏳ {Math.round(reach.slackMin)}'
+                      {suggestedWait != null && suggestedWait > 0 ? (
+                        <Text className={`text-[11px] ${waitColor(suggestedWait, settings)}`}>
+                          ⏳ {Math.round(suggestedWait)}'
                         </Text>
                       ) : null}
                       {dep.travelMinutes != null ? (

@@ -29,6 +29,15 @@ export interface Reach {
 }
 
 /**
+ * Wait time after leaving at the suggested "leave in" time. When there is more
+ * slack than the configured buffer, the suggestion intentionally spends only
+ * that buffer waiting at the stop.
+ */
+export function suggestedWaitMinutes(slackMin: number, optimalWaitMin: number): number {
+  return Math.max(0, Math.min(slackMin, optimalWaitMin));
+}
+
+/**
  * Estimate whether the user can reach a departure's start stop in time.
  *   green  — make it with at least `bufferMin` to spare
  *   yellow — make it, but tight

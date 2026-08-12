@@ -271,6 +271,50 @@ function routeLegs(route: RouteConfig): RouteLeg[] {
   return [];
 }
 
+function finalTransitKey(dep: RouteDeparture): string | null {
+  const transit = dep.itineraryLegs.filter((leg) => leg.type === "transit");
+  if (transit.length < 2) return null;
+  const final = transit[transit.length - 1];
+  if (!final.depWhen || !final.arrWhen) return null;
+  return [
+    final.line ?? "",
+    final.fromLabel,
+    final.toLabel,
+    final.depWhen.toISOString(),
+    final.arrWhen.toISOString(),
+  ].join("|");
+}
+
+function dedupeByFinalTransit(departures: RouteDeparture[]): RouteDeparture[] {
+  const byFinalTransit = new Map<string, RouteDeparture>();
+  const out: RouteDeparture[] = [];
+
+  for (const dep of departures) {
+    const key = finalTransitKey(dep);
+    if (!key) {
+      out.push(dep);
+      continue;
+    }
+
+    const existing = byFinalTransit.get(key);
+    if (!existing) {
+      byFinalTransit.set(key, dep);
+      continue;
+    }
+
+    const depTime = dep.depWhen.getTime();
+    const existingTime = existing.depWhen.getTime();
+    const depTravel = dep.travelMinutes ?? Infinity;
+    const existingTravel = existing.travelMinutes ?? Infinity;
+    if (depTime > existingTime || (depTime === existingTime && depTravel < existingTravel)) {
+      byFinalTransit.set(key, dep);
+    }
+  }
+
+  out.push(...byFinalTransit.values());
+  return out;
+}
+
 export async function fetchTransitLegDepartures(
   from: EfaStop,
   to: EfaStop,
@@ -419,7 +463,9 @@ export async function fetchRouteDepartures(route: RouteConfig, opts: FetchOption
       itineraryLegs,
     });
   }
-  return out.sort((a, b) => a.depWhen.getTime() - b.depWhen.getTime()).slice(0, opts.results);
+  return dedupeByFinalTransit(out)
+    .sort((a, b) => a.depWhen.getTime() - b.depWhen.getTime())
+    .slice(0, opts.results);
 }
 
 /** Illustrative data so the board stays useful if EFA is unreachable. */
