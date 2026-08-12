@@ -8,7 +8,7 @@ on:
     types:
       - completed
     branches:
-      - agent/quality-standard-dokku-1786523615030
+      - master
   workflow_dispatch:
 
 permissions:
