@@ -7,7 +7,7 @@
       "dependencies": {
         "@react-native-async-storage/async-storage": "2.2.0",
         "expo": "~56.0.18",
-        "expo-localization": "~56.0.6",
+        "expo-localization": "~57.0.1",
         "expo-location": "~56.0.22",
         "expo-status-bar": "~57.0.1",
         "nativewind": "^4.2.4",
@@ -493,7 +493,7 @@
 
     "expo-keep-awake": ["expo-keep-awake@57.0.1", "", { "peerDependencies": { "expo": "*", "react": "*" } }, "sha512-28lkFImeXTS+bhAjuCFV7w7tW5bXg27BJVrxv+nC/nyYa86qEa0oFeHwqol6ha5k4pdVDQgBF09GM4A1k76Ssg=="],
 
-    "expo-localization": ["expo-localization@56.0.6", "", { "dependencies": { "rtl-detect": "^1.0.2" }, "peerDependencies": { "expo": "*", "react": "*" } }, "sha512-zzBVoUFHCVNBywcxGsspoZeIXebihOo/AnmQYE4jMv8gHCSKlLNFT+ft+0+mWcZCMs9necvUs8S8TDonAu/xBA=="],
+    "expo-localization": ["expo-localization@57.0.1", "", { "dependencies": { "rtl-detect": "^1.0.2" }, "peerDependencies": { "expo": "*", "react": "*" } }, "sha512-8Ffl4UTbOsQeGT0v5fxMbyPHyPMPnhSPDFQJa8p9rjJrthFoAtNi+fL6Ssmrvf1/7dmPq1mVY52MEt0TMEfgjA=="],
 
     "expo-location": ["expo-location@56.0.22", "", { "dependencies": { "@expo/image-utils": "^0.10.4" }, "peerDependencies": { "expo": "*" } }, "sha512-gX4WlukHV3s7N7qyhHbkZ88DsbJ2sOS04CHDaxAHGN/1b0hcJv0SqpJ4z+DyFZ4AT223Vd8RhYejiPkU1N+3kA=="],
 
