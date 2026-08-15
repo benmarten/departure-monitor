@@ -100,6 +100,7 @@ export function useDepartures(group: LocationGroup | null, settings: ReachSettin
   const [isDemo, setIsDemo] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [maxResultsPerRoute, setMaxResultsPerRoute] = useState(SHOW_PER_ROUTE);
+  const [loadedGroupId, setLoadedGroupId] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const fallbackRef = useRef<{ groupId: string; savedAt: number; groups: RouteGroup[] } | null>(null);
@@ -124,6 +125,7 @@ export function useDepartures(group: LocationGroup | null, settings: ReachSettin
       setError(null);
       setIsDemo(false);
       setLastUpdated(null);
+      setLoadedGroupId(null);
       fallbackRef.current = null;
       networkLoadedGroupRef.current = null;
       return;
@@ -167,6 +169,7 @@ export function useDepartures(group: LocationGroup | null, settings: ReachSettin
     const hasLiveResult = failures < results.length || results.length === 0;
     networkLoadedGroupRef.current = hasLiveResult ? g.id : null;
     setByRoute(groups);
+    setLoadedGroupId(g.id);
     setIsDemo(usedDemo);
     setError(
       failures === 0
@@ -210,6 +213,7 @@ export function useDepartures(group: LocationGroup | null, settings: ReachSettin
       setError(null);
       setIsDemo(false);
       setLastUpdated(null);
+      setLoadedGroupId(null);
       return;
     }
 
@@ -227,6 +231,7 @@ export function useDepartures(group: LocationGroup | null, settings: ReachSettin
       ) {
         fallbackRef.current = { groupId: g.id, savedAt: cached.savedAt, groups: cached.groups };
         setByRoute(cached.groups);
+        setLoadedGroupId(g.id);
         setIsDemo(false);
         setLastUpdated(new Date(cached.savedAt));
         setLoading(false);
@@ -248,9 +253,16 @@ export function useDepartures(group: LocationGroup | null, settings: ReachSettin
     load(false, newMax);
   }, [load]);
 
+  // Effects run after render, so a tab change otherwise renders the previous
+  // tab's departures for one frame. Treat data as unavailable until it belongs
+  // to the visible group; the board will show its existing loading state while
+  // this tab is fetched (or its cache is restored).
+  const visibleGroupId = group?.id ?? null;
+  const hasVisibleGroupData = loadedGroupId === visibleGroupId;
+
   return {
-    byRoute,
-    loading,
+    byRoute: hasVisibleGroupData ? byRoute : [],
+    loading: loading || !hasVisibleGroupData,
     refreshing,
     loadingMore,
     error,
